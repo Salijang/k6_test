@@ -1,0 +1,364 @@
+:root {
+  font-family: "IBM Plex Sans KR", "Segoe UI", sans-serif;
+  color: #18202a;
+  background:
+    radial-gradient(circle at top left, rgba(252, 210, 96, 0.55), transparent 30%),
+    radial-gradient(circle at top right, rgba(68, 149, 255, 0.32), transparent 28%),
+    linear-gradient(180deg, #fffaf0 0%, #f5f7fb 56%, #eff4ff 100%);
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --surface: rgba(255, 255, 255, 0.76);
+  --surface-strong: rgba(255, 255, 255, 0.92);
+  --outline: rgba(25, 34, 44, 0.08);
+  --accent: #d95d39;
+  --accent-dark: #a64321;
+  --primary: #1659b7;
+  --ink-soft: #5b6675;
+  --success: #0d8b62;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.hero {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  padding: 28px;
+  border: 1px solid var(--outline);
+  border-radius: 28px;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.78), rgba(255, 250, 244, 0.96));
+  box-shadow: 0 18px 60px rgba(27, 40, 53, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 3vw, 4rem);
+  line-height: 0.95;
+}
+
+.hero-copy {
+  max-width: 56ch;
+  margin: 16px 0 0;
+  color: var(--ink-soft);
+}
+
+.hero-stats {
+  display: grid;
+  gap: 14px;
+}
+
+.hero-stats article,
+.panel-card,
+.select-card,
+.reservation-card,
+.product-card {
+  border: 1px solid var(--outline);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 12px 36px rgba(27, 40, 53, 0.05);
+}
+
+.hero-stats article {
+  padding: 18px 20px;
+}
+
+.hero-stats span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.hero-stats strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 2rem;
+}
+
+.dashboard {
+  display: grid;
+  gap: 22px;
+  margin-top: 24px;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+}
+
+.control-panel,
+.workspace,
+.workspace-grid,
+.product-list,
+.reservation-list,
+.slot-grid,
+.actor-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.workspace-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel-card {
+  padding: 22px;
+}
+
+.panel-card h2,
+.panel-card h3 {
+  margin: 0 0 6px;
+}
+
+.workspace-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.error-text {
+  color: #b42318;
+}
+
+.field,
+.search-field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span,
+.search-field span {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea,
+.search-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(24, 32, 42, 0.14);
+  border-radius: 14px;
+  background: var(--surface-strong);
+}
+
+.stacked-form {
+  display: grid;
+  gap: 14px;
+}
+
+.split-fields,
+.button-row,
+.reservation-meta,
+.product-head,
+.product-metrics {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.actor-button,
+.primary-button,
+.secondary-button,
+.select-card {
+  border: 0;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.actor-button,
+.select-card {
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.actor-button.active,
+.select-card.active {
+  background: linear-gradient(135deg, rgba(22, 89, 183, 0.14), rgba(217, 93, 57, 0.14));
+  transform: translateY(-1px);
+}
+
+.actor-button span,
+.select-card strong {
+  display: block;
+}
+
+.actor-button small,
+.select-card small,
+.product-head small,
+.reservation-card small,
+.store-summary small {
+  color: var(--ink-soft);
+}
+
+.store-summary {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(22, 89, 183, 0.07);
+}
+
+.primary-button,
+.secondary-button {
+  padding: 11px 14px;
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.primary-button {
+  color: white;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+}
+
+.secondary-button {
+  background: rgba(22, 89, 183, 0.08);
+  color: var(--primary);
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.actor-button:hover,
+.select-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(27, 40, 53, 0.08);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.select-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+.product-card,
+.reservation-card {
+  padding: 18px;
+}
+
+.product-card p,
+.reservation-summary p {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+}
+
+.select-card {
+  background: var(--surface-strong);
+}
+
+.select-card em {
+  display: block;
+  margin-top: 8px;
+  font-style: normal;
+  color: var(--ink-soft);
+}
+
+.slot-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.status-pill {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(22, 89, 183, 0.08);
+  color: var(--primary);
+}
+
+.status-pill.active,
+.status-pill.ready {
+  background: rgba(13, 139, 98, 0.12);
+  color: var(--success);
+}
+
+.status-pill.inactive,
+.status-pill.cancelled,
+.status-pill.no_show {
+  background: rgba(180, 35, 24, 0.1);
+  color: #b42318;
+}
+
+.reservation-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 1080px) {
+  .dashboard,
+  .hero,
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .span-2 {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 18px;
+  }
+
+  .slot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-topbar,
+  .split-fields,
+  .button-row,
+  .reservation-meta,
+  .product-head,
+  .product-metrics {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

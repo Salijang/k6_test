@@ -1,0 +1,24 @@
+[
+  {
+    "prefix": "FRUIT",
+    "name": "Fruit Basket",
+    "description": "Seasonal fruit bundle",
+    "price": 19000,
+    "stock": 12
+  },
+  {
+    "prefix": "MEAL",
+    "name": "Meal Prep Kit",
+    "description": "Ready for pickup dinner set",
+    "price": 24000,
+    "stock": 8
+  },
+  {
+    "prefix": "COFFEE",
+    "name": "Roasted Coffee Beans",
+    "description": "Local roast 500g",
+    "price": 17000,
+    "stock": 15
+  }
+]
+

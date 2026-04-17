@@ -1,0 +1,17 @@
+{
+  "name": "k6test-demo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @k6-demo/api && npm run build --workspace @k6-demo/web",
+    "test": "npm run test --workspace @k6-demo/api && npm run test --workspace @k6-demo/web",
+    "dev:api": "npm run dev --workspace @k6-demo/api",
+    "dev:web": "npm run dev --workspace @k6-demo/web",
+    "db:start": "docker compose up -d postgres",
+    "db:stop": "docker compose down"
+  }
+}
+
