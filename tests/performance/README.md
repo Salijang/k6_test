@@ -46,7 +46,8 @@
 
 사전 조건
 
-- API 서버가 `http://localhost:4000`에서 실행 중
+- `docker compose -f docker-compose.stack.yml up --build -d` 로 전체 스택을 띄운 경우 API는 `http://localhost:14000` 에서 응답한다.
+- `npm run dev:api` 로 API만 띄운 경우 기본 포트는 `http://localhost:4000` 이다. 이 경우 `K6_BASE_URL` 을 명시해서 실행한다.
 - PostgreSQL 연결로 실행하면 예약/재고 경합 시나리오가 더 현실적임
 
 공통 환경 파일은 [shared/env/local.example.json](/home/system/workspace/k6testDemo/tests/performance/shared/env/local.example.json) 를 참고한다.
@@ -58,12 +59,60 @@ k6 run tests/performance/k6/hot-slot-race.js
 k6 run tests/performance/k6/cancel-and-rereserve.js
 ```
 
-필요하면 아래처럼 환경변수를 덮어쓴다.
+로컬 dev API(`http://localhost:4000`)를 대상으로 돌릴 때는 아래처럼 환경변수를 덮어쓴다.
 
 ```bash
-K6_BASE_URL=http://localhost:4000 \
-K6_STORE_ID=store-seoul-central \
-K6_SELLER_ID=seller-seoul-central \
-K6_CUSTOMER_ID=customer-minji \
-k6 run tests/performance/k6/hot-slot-race.js
+K6_BASE_URL=http://localhost:4000 K6_STORE_ID=store-seoul-central K6_SELLER_ID=seller-seoul-central K6_CUSTOMER_ID=customer-minji k6 run tests/performance/k6/hot-slot-race.js
+```
+
+## Prometheus / Grafana로 메트릭 보기
+
+모니터링 스택만 먼저 띄운다.
+
+```bash
+npm run monitoring:start
+```
+
+접속 주소:
+
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+
+Grafana 기본 계정:
+
+- ID: `admin`
+- PW: `admin`
+
+k6를 Prometheus remote write 출력으로 실행한다.
+
+```bash
+npm run k6:run:prometheus -- tests/performance/k6/product-list-read.js
+```
+
+API를 `npm run dev:api` 로 띄운 상태라면 `K6_BASE_URL` 만 덮어쓰면 된다.
+
+```bash
+K6_BASE_URL=http://localhost:4000 npm run k6:run:prometheus -- tests/performance/k6/hot-slot-race.js
+```
+
+각 테스트 런에는 기본으로 `testid=<timestamp>` 태그가 붙는다. 필요하면 `K6_TESTID` 로 직접 지정할 수 있다.
+
+```bash
+K6_TESTID=burst-20260417 npm run k6:run:prometheus -- tests/performance/k6/product-registration-burst.js
+```
+
+참고: 각 k6 스크립트가 `options.scenarios` 를 직접 정의하고 있으면 `--vus`, `--duration` 같은 CLI 플래그보다 스크립트 설정이 우선한다. 부하 조건을 바꾸려면 해당 스크립트의 옵션을 수정하거나 별도 시나리오 파일을 쓰는 편이 안전하다.
+
+Grafana에 들어가면 `k6 / k6 Load Test Overview` 대시보드가 자동으로 올라온다.
+
+전체 앱 스택과 모니터링을 한 번에 올리려면 아래처럼 compose 파일을 같이 사용한다.
+
+```bash
+docker compose -f docker-compose.stack.yml -f docker-compose.monitoring.yml up --build -d
+```
+
+종료:
+
+```bash
+npm run monitoring:stop
 ```

@@ -11,7 +11,9 @@
     "dev:api": "npm run dev --workspace @k6-demo/api",
     "dev:web": "npm run dev --workspace @k6-demo/web",
     "db:start": "docker compose up -d postgres",
-    "db:stop": "docker compose down"
+    "db:stop": "docker compose down",
+    "monitoring:start": "docker compose -f docker-compose.monitoring.yml up -d",
+    "monitoring:stop": "docker compose -f docker-compose.monitoring.yml down",
+    "k6:run:prometheus": "bash tests/performance/run-with-prometheus.sh"
   }
 }
-
