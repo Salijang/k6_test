@@ -1,0 +1,32 @@
+services:
+  postgres:
+    cpus: "${POSTGRES_CPUS:-1.0}"
+    mem_limit: "${POSTGRES_MEM_LIMIT:-1024m}"
+    memswap_limit: "${POSTGRES_MEMSWAP_LIMIT:-1024m}"
+    pids_limit: 256
+
+  api:
+    cpus: "${API_CPUS:-1.0}"
+    mem_limit: "${API_MEM_LIMIT:-768m}"
+    memswap_limit: "${API_MEMSWAP_LIMIT:-768m}"
+    pids_limit: 256
+    environment:
+      NODE_OPTIONS: "${API_NODE_OPTIONS:---max-old-space-size=512}"
+
+  web:
+    cpus: "${WEB_CPUS:-0.5}"
+    mem_limit: "${WEB_MEM_LIMIT:-256m}"
+    memswap_limit: "${WEB_MEMSWAP_LIMIT:-256m}"
+    pids_limit: 128
+
+  prometheus:
+    cpus: "${PROMETHEUS_CPUS:-0.5}"
+    mem_limit: "${PROMETHEUS_MEM_LIMIT:-512m}"
+    memswap_limit: "${PROMETHEUS_MEMSWAP_LIMIT:-512m}"
+    pids_limit: 128
+
+  grafana:
+    cpus: "${GRAFANA_CPUS:-0.5}"
+    mem_limit: "${GRAFANA_MEM_LIMIT:-384m}"
+    memswap_limit: "${GRAFANA_MEMSWAP_LIMIT:-384m}"
+    pids_limit: 128

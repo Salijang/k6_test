@@ -47,6 +47,7 @@
 사전 조건
 
 - `docker compose -f docker-compose.stack.yml up --build -d` 로 전체 스택을 띄운 경우 API는 `http://localhost:14000` 에서 응답한다.
+- `docker compose -f docker-compose.stack.yml -f docker-compose.monitoring.yml -f docker-compose.capacity.yml up --build -d` 로 자원 제한 스택을 띄운 경우에도 API는 `http://localhost:14000` 에서 응답한다.
 - `npm run dev:api` 로 API만 띄운 경우 기본 포트는 `http://localhost:4000` 이다. 이 경우 `K6_BASE_URL` 을 명시해서 실행한다.
 - PostgreSQL 연결로 실행하면 예약/재고 경합 시나리오가 더 현실적임
 
@@ -55,6 +56,7 @@
 ```bash
 k6 run tests/performance/k6/product-registration-burst.js
 k6 run tests/performance/k6/product-list-read.js
+k6 run tests/performance/k6/product-list-capacity.js
 k6 run tests/performance/k6/hot-slot-race.js
 k6 run tests/performance/k6/cancel-and-rereserve.js
 ```
@@ -104,6 +106,80 @@ K6_TESTID=burst-20260417 npm run k6:run:prometheus -- tests/performance/k6/produ
 참고: 각 k6 스크립트가 `options.scenarios` 를 직접 정의하고 있으면 `--vus`, `--duration` 같은 CLI 플래그보다 스크립트 설정이 우선한다. 부하 조건을 바꾸려면 해당 스크립트의 옵션을 수정하거나 별도 시나리오 파일을 쓰는 편이 안전하다.
 
 Grafana에 들어가면 `k6 / k6 Load Test Overview` 대시보드가 자동으로 올라온다.
+
+동접 수용 한계를 보기 위한 step-load capacity 시나리오는 아래 스크립트를 사용한다.
+
+```bash
+K6_BASE_URL=http://localhost:14000 npm run k6:run:prometheus -- tests/performance/k6/product-list-capacity.js
+```
+
+기본 단계는 `10,25,50,100,150,200 VUs` 이고, 각 단계는 `20s` 램프업 후 `1m` 유지된다.
+
+단계를 조정하려면 환경변수를 사용한다.
+
+```bash
+K6_BASE_URL=http://localhost:14000 \
+K6_CAPACITY_STAGE_TARGETS=10,25,50,100,200,300 \
+K6_CAPACITY_HOLD_DURATION=2m \
+npm run k6:run:prometheus -- tests/performance/k6/product-list-capacity.js
+```
+
+로컬 dev API를 직접 대상으로 할 때만 `K6_BASE_URL=http://localhost:4000` 으로 덮어쓴다.
+
+실제 인프라에 가까운 로컬 재현을 하려면 자원 제한 스택을 먼저 띄운다.
+
+```bash
+bash tests/performance/start-capacity-stack.sh
+```
+
+기본 제한값:
+
+- API: `1.0 CPU`, `768MB`
+- PostgreSQL: `1.0 CPU`, `1024MB`
+- Web: `0.5 CPU`, `256MB`
+- Prometheus: `0.5 CPU`, `512MB`
+- Grafana: `0.5 CPU`, `384MB`
+
+제한값을 바꾸려면 환경변수를 사용한다.
+
+```bash
+API_CPUS=2 API_MEM_LIMIT=1024m POSTGRES_CPUS=2 POSTGRES_MEM_LIMIT=1536m \
+bash tests/performance/start-capacity-stack.sh
+```
+
+이 환경에서는 k6를 호스트에서 실행해 앱 컨테이너의 제한 자원을 같이 먹지 않도록 한다.
+
+```bash
+K6_BASE_URL=http://localhost:14000 bash tests/performance/run-capacity-report.sh
+```
+
+종료:
+
+```bash
+bash tests/performance/stop-capacity-stack.sh
+```
+
+보고서 작성용으로 시나리오 4개를 순서대로 실행하고 로그를 남기려면 아래 스크립트를 쓴다.
+
+```bash
+bash tests/performance/run-report-suite.sh
+```
+
+로컬 API 주소를 명시하려면:
+
+```bash
+K6_BASE_URL=http://localhost:4000 bash tests/performance/run-report-suite.sh
+```
+
+실행 결과는 `tests/performance/results/<run-id>/` 아래에 시나리오별 로그로 저장된다. 각 실행에는 `<run-id>-<scenario>` 형식의 `testid` 가 붙으므로 Grafana에서 필터링해서 보고서에 옮기기 쉽다.
+
+capacity 보완 보고서용 단일 실행은 아래 스크립트를 사용한다.
+
+```bash
+K6_BASE_URL=http://localhost:14000 bash tests/performance/run-capacity-report.sh
+```
+
+실행 결과는 `tests/performance/results/<run-id>/product-list-capacity.log` 에 저장된다.
 
 전체 앱 스택과 모니터링을 한 번에 올리려면 아래처럼 compose 파일을 같이 사용한다.
 
