@@ -6,11 +6,18 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "${ROOT_DIR}"
 
-docker compose \
-  -f docker-compose.stack.yml \
-  -f docker-compose.monitoring.yml \
-  -f docker-compose.capacity.yml \
-  up --build -d
+COMPOSE_ARGS=(
+  -f docker-compose.stack.yml
+  -f docker-compose.monitoring.yml
+  -f docker-compose.capacity.yml
+)
+
+if [[ "${RESET_STACK_DATA:-0}" == "1" ]]; then
+  echo "Resetting constrained stack volumes before startup..."
+  docker compose "${COMPOSE_ARGS[@]}" down -v
+fi
+
+docker compose "${COMPOSE_ARGS[@]}" up --build -d
 
 echo
 echo "Constrained stack is up."

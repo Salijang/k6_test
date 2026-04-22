@@ -132,6 +132,12 @@ npm run k6:run:prometheus -- tests/performance/k6/product-list-capacity.js
 bash tests/performance/start-capacity-stack.sh
 ```
 
+테스트 데이터를 초기화한 클린 상태로 다시 시작하려면:
+
+```bash
+RESET_STACK_DATA=1 bash tests/performance/start-capacity-stack.sh
+```
+
 기본 제한값:
 
 - API: `1.0 CPU`, `768MB`
