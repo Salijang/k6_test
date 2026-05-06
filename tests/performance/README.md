@@ -58,6 +58,7 @@ k6 run tests/performance/k6/product-registration-burst.js
 k6 run tests/performance/k6/product-list-read.js
 k6 run tests/performance/k6/product-list-capacity.js
 k6 run tests/performance/k6/hot-slot-race.js
+k6 run tests/performance/k6/reservation-status-flow.js
 k6 run tests/performance/k6/cancel-and-rereserve.js
 ```
 
@@ -165,7 +166,7 @@ K6_BASE_URL=http://localhost:14000 bash tests/performance/run-capacity-report.sh
 bash tests/performance/stop-capacity-stack.sh
 ```
 
-보고서 작성용으로 시나리오 4개를 순서대로 실행하고 로그를 남기려면 아래 스크립트를 쓴다.
+보고서 작성용으로 시나리오 5개를 순서대로 실행하고 로그를 남기려면 아래 스크립트를 쓴다.
 
 ```bash
 bash tests/performance/run-report-suite.sh
@@ -177,12 +178,30 @@ bash tests/performance/run-report-suite.sh
 K6_BASE_URL=http://localhost:4000 bash tests/performance/run-report-suite.sh
 ```
 
+클린 상태의 constrained stack 을 먼저 띄운 뒤 보고서용 실행을 바로 시작하려면:
+
+```bash
+RESET_STACK_DATA=1 \
+PRE_RUN_SCRIPT=tests/performance/start-capacity-stack.sh \
+K6_BASE_URL=http://localhost:14000 \
+bash tests/performance/run-report-suite.sh
+```
+
 실행 결과는 `tests/performance/results/<run-id>/` 아래에 시나리오별 로그로 저장된다. 각 실행에는 `<run-id>-<scenario>` 형식의 `testid` 가 붙으므로 Grafana에서 필터링해서 보고서에 옮기기 쉽다.
 
 capacity 보완 보고서용 단일 실행은 아래 스크립트를 사용한다.
 
 ```bash
 K6_BASE_URL=http://localhost:14000 bash tests/performance/run-capacity-report.sh
+```
+
+capacity 실행도 필요하면 같은 방식으로 pre-run script 를 연결할 수 있다.
+
+```bash
+RESET_STACK_DATA=1 \
+PRE_RUN_SCRIPT=tests/performance/start-capacity-stack.sh \
+K6_BASE_URL=http://localhost:14000 \
+bash tests/performance/run-capacity-report.sh
 ```
 
 실행 결과는 `tests/performance/results/<run-id>/product-list-capacity.log` 에 저장된다.

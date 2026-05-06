@@ -1,3 +1,4 @@
+// Burst-style product writes that intentionally collide on SKU to verify conflict handling.
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
@@ -13,6 +14,11 @@ const status409 = new Counter("registration_status_409");
 const status5xx = new Counter("registration_status_5xx");
 
 export const options = {
+  thresholds: {
+    checks: ["rate==1"],
+    registration_status_5xx: ["count==0"],
+    http_req_duration: ["p(95)<1500"],
+  },
   scenarios: {
     registration_burst: {
       executor: "ramping-vus",

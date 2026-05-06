@@ -1,3 +1,4 @@
+// Same-slot reservation race that checks conflict control and final stock/capacity integrity.
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
@@ -9,6 +10,8 @@ import {
   customerHeaders,
   dayWithOffset,
   listSlotsForDate,
+  listProducts,
+  listReservationsForDate,
   sellerHeaders,
 } from "./common.js";
 
@@ -21,6 +24,11 @@ const HOT_SLOT_QUANTITY = Number(__ENV.K6_HOT_SLOT_QUANTITY ?? "1");
 const RUN_PREFIX = __ENV.K6_HOT_SLOT_RUN_PREFIX ?? `${Date.now()}`;
 
 export const options = {
+  thresholds: {
+    checks: ["rate==1"],
+    hot_slot_status_5xx: ["count==0"],
+    http_req_duration: ["p(95)<2000"],
+  },
   scenarios: {
     hot_slot_race: {
       executor: "constant-arrival-rate",
@@ -67,6 +75,7 @@ export function setup() {
     product: productResponse.json(),
     slot,
     slotDate,
+    initialRemainingCapacity: slot.remainingCapacity,
   };
 }
 
@@ -103,4 +112,33 @@ export default function (setupData) {
   });
 
   sleep(1);
+}
+
+export function teardown(setupData) {
+  const products = listProducts();
+  const product = products.find((item) => item.id === setupData.product.id);
+  const slots = listSlotsForDate(setupData.slotDate);
+  const slot = slots.find((item) => item.id === setupData.slot.id);
+  const reservations = listReservationsForDate(setupData.slotDate).filter(
+    (item) => item.productId === setupData.product.id && item.slotId === setupData.slot.id && item.status !== "CANCELLED",
+  );
+  const reservedQuantity = reservations.reduce((sum, item) => sum + item.quantity, 0);
+  const expectedRemainingCapacity = setupData.initialRemainingCapacity - reservations.length;
+  const expectedRemainingStock = HOT_SLOT_PRODUCT_STOCK - reservedQuantity;
+
+  check(reservations, {
+    "hot slot reservations never exceed initial remaining capacity": (items) =>
+      items.length <= setupData.initialRemainingCapacity,
+    "hot slot reserved quantity never exceeds product stock": () => reservedQuantity <= HOT_SLOT_PRODUCT_STOCK,
+  });
+  check(slot, {
+    "hot slot remaining capacity never negative": (item) => Boolean(item) && item.remainingCapacity >= 0,
+    "hot slot remaining capacity matches reservation count": (item) =>
+      Boolean(item) && item.remainingCapacity === expectedRemainingCapacity,
+  });
+  check(product, {
+    "hot slot product stock never negative": (item) => Boolean(item) && item.stock >= 0,
+    "hot slot product stock matches reserved quantity": (item) =>
+      Boolean(item) && item.stock === expectedRemainingStock,
+  });
 }

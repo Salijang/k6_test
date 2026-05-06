@@ -34,7 +34,23 @@
   - 슬롯 정원 초과 예약이 없어야 함
   - 재고가 음수가 되면 안 됨
 
-## 4. 취소 후 재예약
+## 4. 판매자 예약 운영 상태 전이
+
+- 목적: 판매자가 예약 목록을 조회하고 예약 상태를 `READY`, `PICKED_UP`, `NO_SHOW` 로 운영할 때 응답 안정성과 상태 전이 정합성을 확인
+- 대상 API:
+  - `GET /stores/:storeId/reservations?date=YYYY-MM-DD`
+  - `PATCH /pickup-reservations/:id/status`
+- 부하 포인트:
+  - 예약 목록 조회 반복
+  - 상태 전이 처리
+  - 픽업 완료 분기와 미수령 분기 처리
+  - 생성 직후 예약 건에 대한 후속 운영 요청
+- 성공 기준:
+  - 예약 목록에서 대상 예약이 조회되어야 함
+  - 상태 전이가 `RESERVED -> READY -> PICKED_UP` 또는 `RESERVED -> NO_SHOW` 로 정상 처리되어야 함
+  - `5xx` 오류가 없어야 함
+
+## 5. 취소 후 재예약
 
 - 목적: 취소 시 자원 복구와 뒤이은 재예약 처리 확인
 - 대상 API:
@@ -45,7 +61,7 @@
   - 슬롯 잔여 정원 복원
   - 취소 직후 재예약 경쟁
 
-## 5. 상품 목록 조회 capacity
+## 6. 상품 목록 조회 capacity
 
 - 목적: 단계적으로 동접 사용자를 늘리면서 상품 목록 조회 API의 수용 한계를 확인
 - 대상 API: `GET /stores/:storeId/products`

@@ -66,3 +66,11 @@ export function listSlotsForDate(date) {
 export function listSlots() {
   return listSlotsForDate(today());
 }
+
+export function listReservationsForDate(date) {
+  const response = http.get(`${BASE_URL}/stores/${STORE_ID}/reservations?date=${date}`, sellerHeaders());
+  check(response, {
+    "list reservations status is 200": (res) => res.status === 200,
+  });
+  return response.json();
+}

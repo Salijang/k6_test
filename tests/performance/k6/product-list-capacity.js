@@ -1,3 +1,4 @@
+// Step-load read capacity probe for finding degradation and limit zones of the product list API.
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
@@ -13,6 +14,7 @@ const RAMP_DURATION = __ENV.K6_CAPACITY_RAMP_DURATION ?? "20s";
 const HOLD_DURATION = __ENV.K6_CAPACITY_HOLD_DURATION ?? "1m";
 const COOLDOWN_DURATION = __ENV.K6_CAPACITY_COOLDOWN_DURATION ?? "20s";
 const THINK_TIME_SECONDS = Number(__ENV.K6_CAPACITY_THINK_TIME ?? "0.5");
+const ENFORCE_THRESHOLDS = __ENV.K6_CAPACITY_ENFORCE_THRESHOLDS === "1";
 
 const status2xx = new Counter("capacity_status_2xx");
 const status4xx = new Counter("capacity_status_4xx");
@@ -29,6 +31,14 @@ function buildStages(targets) {
 }
 
 export const options = {
+  ...(ENFORCE_THRESHOLDS
+    ? {
+        thresholds: {
+          checks: ["rate>0.99"],
+          capacity_status_5xx: ["count==0"],
+        },
+      }
+    : {}),
   scenarios: {
     product_list_capacity: {
       executor: "ramping-vus",

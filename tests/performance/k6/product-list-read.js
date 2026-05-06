@@ -1,3 +1,4 @@
+// Fixed-concurrency read baseline for product list latency and response stability.
 import { sleep } from "k6";
 import http from "k6/http";
 import { check } from "k6";
@@ -5,6 +6,11 @@ import { check } from "k6";
 import { BASE_URL, STORE_ID } from "./common.js";
 
 export const options = {
+  thresholds: {
+    checks: ["rate==1"],
+    http_req_failed: ["rate==0"],
+    http_req_duration: ["p(95)<1000"],
+  },
   scenarios: {
     product_read: {
       executor: "constant-vus",
@@ -24,4 +30,3 @@ export default function () {
 
   sleep(0.5);
 }
-

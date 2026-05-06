@@ -1,3 +1,4 @@
+// Reservation create-cancel-rereserve flow that validates resource rollback after cancellation.
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
@@ -28,6 +29,12 @@ const status409 = new Counter("cancel_flow_status_409");
 const status5xx = new Counter("cancel_flow_status_5xx");
 
 export const options = {
+  thresholds: {
+    checks: ["rate==1"],
+    cancel_flow_status_409: ["count==0"],
+    cancel_flow_status_5xx: ["count==0"],
+    http_req_duration: ["p(95)<2000"],
+  },
   scenarios: {
     cancel_and_rereserve: {
       executor: "per-vu-iterations",
