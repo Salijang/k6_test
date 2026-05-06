@@ -2,10 +2,11 @@
 
 Salijang 배포 환경이 생기면 `K6_BASE_URL` 계열 변수만 바꿔서 바로 실행하는 k6 시나리오 모음이다.
 
-실제 백엔드 코드 기준 API 매핑은 [API_MAPPING.md](/home/system/workspace/k6testDemo/tests/performance/k6/sallijang/API_MAPPING.md)에 정리한다.
-dev API 라우팅 장애 확인/복구 절차는 [DEV_API_ROUTING_RUNBOOK.md](/home/system/workspace/k6testDemo/tests/performance/k6/sallijang/DEV_API_ROUTING_RUNBOOK.md)에 정리한다.
-dev 환경 테스트 진행 순서는 [DEV_TEST_PLAN.md](/home/system/workspace/k6testDemo/tests/performance/k6/sallijang/DEV_TEST_PLAN.md)에 정리한다.
-2026-05-05 dev 인프라 상태 확인 결과는 [DEV_TEST_STATUS_2026-05-05.md](/home/system/workspace/k6testDemo/tests/performance/k6/sallijang/DEV_TEST_STATUS_2026-05-05.md)에 정리한다.
+실제 백엔드 코드 기준 API 매핑은 [API_MAPPING.md](API_MAPPING.md)에 정리한다.
+dev API 라우팅 장애 확인/복구 절차는 [DEV_API_ROUTING_RUNBOOK.md](DEV_API_ROUTING_RUNBOOK.md)에 정리한다.
+dev 환경 테스트 진행 순서는 [DEV_TEST_PLAN.md](DEV_TEST_PLAN.md)에 정리한다.
+EC2 k6 runner 운영 절차는 [EC2_K6_RUNNER_RUNBOOK.md](EC2_K6_RUNNER_RUNBOOK.md)에 정리한다.
+2026-05-05 dev 인프라 상태 확인 결과는 [DEV_TEST_STATUS_2026-05-05.md](DEV_TEST_STATUS_2026-05-05.md)에 정리한다.
 
 ## Scripts
 
@@ -48,7 +49,7 @@ dev 환경 테스트 진행 순서는 [DEV_TEST_PLAN.md](/home/system/workspace/
 export K6_BASE_URL=https://api.sallijang.shop
 ```
 
-2026-05-05 기준 dev ALB 인증서는 `api.sallijang.shop`를 커버하지 않는다. 인증서가 교체되기 전까지 외부 k6 실행에는 `--insecure-skip-tls-verify`를 붙인다.
+2026-05-06 확인 기준 `api.sallijang.shop`는 wildcard 인증서로 TLS 검증이 정상 통과한다. 이전 dev 인증서 문제처럼 TLS 검증이 실패하는 임시 환경에서만 k6에 `--insecure-skip-tls-verify`를 붙인다.
 
 capacity 판정용 실행은 시간이 안정적인 runner에서 수행한다. WSL/로컬 runner의 wall-clock jump가 있으면 k6가 정상 API 요청을 timeout으로 집계할 수 있다.
 
@@ -95,6 +96,10 @@ export K6_AUTH_HEADER_VALUE="..."
 주의: 상품 생성/삭제는 store owner 검사를 하므로 `K6_STORE_ID`의 owner seller token이 필요하다. 주문 생성의 buyer id는 request body가 아니라 JWT에서 결정된다.
 
 ## Run
+
+AWS EC2 k6 runner에서 실행할 때는 로컬 파일을 직접 복사하지 않는다.
+로컬에서 수정한 스크립트를 `Salijang/k6_test`에 push한 뒤 runner가 GitHub에서 pull해서 실행한다.
+자세한 절차는 [EC2_K6_RUNNER_RUNBOOK.md](EC2_K6_RUNNER_RUNBOOK.md)를 따른다.
 
 테스트 계정과 store를 새로 만들 수 있는 환경이면 먼저 준비 스크립트를 실행한다.
 
