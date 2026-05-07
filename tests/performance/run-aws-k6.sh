@@ -9,12 +9,12 @@ RUNNER_SCRIPT="${RUNNER_SCRIPT:-/opt/sallijang/run-k6.sh}"
 
 usage() {
   cat <<'USAGE'
-Usage:
+사용법:
   tests/performance/run-aws-k6.sh
   tests/performance/run-aws-k6.sh interactive
   tests/performance/run-aws-k6.sh <scenario> [options]
 
-Scenarios:
+테스트 종류:
   smoke       기본 smoke
   read        상품 목록 조회 고정 RPS
   step        상품 목록 조회 단계 상승
@@ -24,47 +24,47 @@ Scenarios:
   remaining   상품 재고 변경 부하
   soak        구매자 여정 soak
 
-Common options:
+공통 옵션:
   --run-id <id>             결과 디렉토리 이름
   --base-url <url>          기본값: https://api.sallijang.shop
   --instance-id <id>        기본값: i-04a0a7d028c6b9156
   --profile <name>          기본값: salijang
   --region <region>         기본값: ap-northeast-2
   --env KEY=VALUE           임의 k6 환경변수 추가. 여러 번 사용 가능
-  --wait                    완료까지 기다리고 stdout/stderr 출력
+  --wait                    테스트 완료까지 기다린 뒤 실행 결과 출력
 
-Read options:
+조회/쓰기 부하 옵션:
   --rate <rps>              read/order/create/remaining RPS
   --duration <duration>     read/order/create/remaining/soak duration
 
-Step options:
+단계 상승 옵션:
   --targets <csv>           예: 5,10,20
   --hold <duration>         예: 1m
   --ramp <duration>         예: 30s
 
-Spike options:
+Spike 옵션:
   --base-rate <rps>
   --spike-rate <rps>
 
-Write/order options:
+쓰기/주문 옵션:
   --store-id <id>
   --seller-token <token>
   --buyer-token <token>
   --token <token>
 
-Examples:
+예시:
   tests/performance/run-aws-k6.sh smoke --wait
   tests/performance/run-aws-k6.sh read --rate 5 --duration 1m --run-id read-5rps --wait
   tests/performance/run-aws-k6.sh step --targets 5,10,20 --hold 1m --run-id step-5-20
   tests/performance/run-aws-k6.sh order --store-id 1 --rate 2 --duration 1m --buyer-token "$K6_BUYER_ACCESS_TOKEN"
 
-Environment overrides:
+환경변수로 기본값 변경:
   AWS_PROFILE_NAME, AWS_REGION, K6_RUNNER_INSTANCE_ID, K6_BASE_URL, RUNNER_SCRIPT
 USAGE
 }
 
 die() {
-  echo "error: $*" >&2
+  echo "오류: $*" >&2
   exit 1
 }
 
@@ -116,7 +116,7 @@ append_if_set() {
 
 interactive_mode() {
   cat <<'MENU'
-Available scenarios:
+실행 가능한 테스트:
   1) smoke      기본 연결 확인
   2) read       상품 목록 조회 고정 RPS
   3) step       상품 목록 조회 단계 상승
@@ -128,7 +128,7 @@ Available scenarios:
 MENU
 
   local choice selected
-  read -r -p "Select scenario [1-8]: " choice
+  read -r -p "테스트를 선택하세요 [1-8]: " choice
   case "$choice" in
     1|smoke) selected="smoke" ;;
     2|read) selected="read" ;;
@@ -147,9 +147,9 @@ MENU
   local base_url instance_id profile region run_id wait_answer
   profile="$(prompt_default "AWS profile" "$AWS_PROFILE_NAME")"
   region="$(prompt_default "AWS region" "$AWS_REGION")"
-  instance_id="$(prompt_default "Runner instance id" "$K6_RUNNER_INSTANCE_ID")"
-  base_url="$(prompt_default "K6 base URL" "$K6_BASE_URL_DEFAULT")"
-  run_id="$(prompt_default "Run ID" "${selected}-$(date +%Y%m%d-%H%M%S)")"
+  instance_id="$(prompt_default "Runner EC2 instance id" "$K6_RUNNER_INSTANCE_ID")"
+  base_url="$(prompt_default "테스트 대상 API 주소" "$K6_BASE_URL_DEFAULT")"
+  run_id="$(prompt_default "결과 이름 Run ID" "${selected}-$(date +%Y%m%d-%H%M%S)")"
 
   args+=("--profile" "$profile")
   args+=("--region" "$region")
@@ -159,64 +159,64 @@ MENU
 
   case "$selected" in
     read)
-      args+=("--rate" "$(prompt_default "Read RPS" "5")")
-      args+=("--duration" "$(prompt_default "Duration" "1m")")
+      args+=("--rate" "$(prompt_default "조회 RPS" "5")")
+      args+=("--duration" "$(prompt_default "실행 시간" "1m")")
       ;;
     step)
-      args+=("--targets" "$(prompt_default "Step targets CSV" "5,10,20")")
-      args+=("--ramp" "$(prompt_default "Ramp duration" "30s")")
-      args+=("--hold" "$(prompt_default "Hold duration per step" "1m")")
+      args+=("--targets" "$(prompt_default "단계별 목표 RPS 목록, 쉼표로 구분" "5,10,20")")
+      args+=("--ramp" "$(prompt_default "단계 상승 시간" "30s")")
+      args+=("--hold" "$(prompt_default "각 단계 유지 시간" "1m")")
       ;;
     spike)
-      args+=("--base-rate" "$(prompt_default "Base RPS" "2")")
-      args+=("--spike-rate" "$(prompt_default "Spike RPS" "15")")
+      args+=("--base-rate" "$(prompt_default "기본 RPS" "2")")
+      args+=("--spike-rate" "$(prompt_default "급증 RPS" "15")")
       ;;
     order)
       echo "주의: order 테스트는 실제 주문 데이터를 만들 수 있다." >&2
-      confirm_default_yes "Continue with order test?" || exit 0
-      args+=("--store-id" "$(prompt_default "Store ID" "1")")
-      args+=("--rate" "$(prompt_default "Order RPS" "2")")
-      args+=("--duration" "$(prompt_default "Duration" "1m")")
-      append_if_set args "--buyer-token" "$(prompt_secret_optional "Buyer access token, blank to skip")"
+      confirm_default_yes "주문 테스트를 계속할까요?" || exit 0
+      args+=("--store-id" "$(prompt_default "스토어 ID" "1")")
+      args+=("--rate" "$(prompt_default "주문 RPS" "2")")
+      args+=("--duration" "$(prompt_default "실행 시간" "1m")")
+      append_if_set args "--buyer-token" "$(prompt_secret_optional "구매자 access token, 없으면 Enter")"
       ;;
     create)
       echo "주의: create 테스트는 실제 상품 생성/삭제 API를 호출한다." >&2
-      confirm_default_yes "Continue with product create test?" || exit 0
-      args+=("--store-id" "$(prompt_default "Store ID" "1")")
-      args+=("--rate" "$(prompt_default "Create RPS" "2")")
-      args+=("--duration" "$(prompt_default "Duration" "1m")")
-      append_if_set args "--seller-token" "$(prompt_secret_optional "Seller access token, blank to skip")"
+      confirm_default_yes "상품 생성/삭제 테스트를 계속할까요?" || exit 0
+      args+=("--store-id" "$(prompt_default "스토어 ID" "1")")
+      args+=("--rate" "$(prompt_default "상품 생성 RPS" "2")")
+      args+=("--duration" "$(prompt_default "실행 시간" "1m")")
+      append_if_set args "--seller-token" "$(prompt_secret_optional "판매자 access token, 없으면 Enter")"
       ;;
     remaining)
       echo "주의: remaining 테스트는 상품 재고 변경 API를 호출한다." >&2
-      confirm_default_yes "Continue with remaining test?" || exit 0
-      args+=("--store-id" "$(prompt_default "Store ID" "1")")
-      args+=("--rate" "$(prompt_default "Remaining update RPS" "2")")
-      args+=("--duration" "$(prompt_default "Duration" "1m")")
-      append_if_set args "--seller-token" "$(prompt_secret_optional "Seller access token, blank to skip")"
-      append_if_set args "--env" "K6_PRODUCT_POOL_SIZE=$(prompt_default "Product pool size" "10")"
+      confirm_default_yes "재고 변경 테스트를 계속할까요?" || exit 0
+      args+=("--store-id" "$(prompt_default "스토어 ID" "1")")
+      args+=("--rate" "$(prompt_default "재고 변경 RPS" "2")")
+      args+=("--duration" "$(prompt_default "실행 시간" "1m")")
+      append_if_set args "--seller-token" "$(prompt_secret_optional "판매자 access token, 없으면 Enter")"
+      append_if_set args "--env" "K6_PRODUCT_POOL_SIZE=$(prompt_default "테스트 상품 풀 크기" "10")"
       ;;
     soak)
       echo "주의: soak 테스트는 장시간 실행되며 설정에 따라 주문 데이터를 만들 수 있다." >&2
-      confirm_default_yes "Continue with soak test?" || exit 0
-      args+=("--store-id" "$(prompt_default "Store ID" "1")")
-      args+=("--duration" "$(prompt_default "Soak duration" "10m")")
-      append_if_set args "--env" "K6_SOAK_VUS=$(prompt_default "Soak VUs" "2")"
-      append_if_set args "--env" "K6_SOAK_ORDER_PROBABILITY=$(prompt_default "Order probability 0-1" "0.2")"
-      append_if_set args "--buyer-token" "$(prompt_secret_optional "Buyer access token, blank to skip")"
+      confirm_default_yes "장시간 soak 테스트를 계속할까요?" || exit 0
+      args+=("--store-id" "$(prompt_default "스토어 ID" "1")")
+      args+=("--duration" "$(prompt_default "Soak 실행 시간" "10m")")
+      append_if_set args "--env" "K6_SOAK_VUS=$(prompt_default "동시 사용자 VUs" "2")"
+      append_if_set args "--env" "K6_SOAK_ORDER_PROBABILITY=$(prompt_default "주문 생성 확률 0-1" "0.2")"
+      append_if_set args "--buyer-token" "$(prompt_secret_optional "구매자 access token, 없으면 Enter")"
       ;;
   esac
 
-  wait_answer="$(prompt_default "Wait for completion? y/n" "y")"
+  wait_answer="$(prompt_default "테스트가 끝날 때까지 기다릴까요? y/n" "y")"
   if [[ "$wait_answer" =~ ^[Yy]$ || "$wait_answer" =~ ^[Yy][Ee][Ss]$ ]]; then
     args+=("--wait")
   fi
 
   echo
-  echo "Selected scenario: $selected"
+  echo "선택한 테스트: $selected"
   echo "Run ID: $run_id"
-  confirm_default_yes "Execute now?" || exit 0
-  echo "Starting scenario: $selected"
+  confirm_default_yes "지금 실행할까요?" || exit 0
+  echo "테스트 실행 시작: $selected"
   exec "$0" "${args[@]}"
 }
 
@@ -261,7 +261,7 @@ case "$scenario" in
     scenario_file="tests/performance/k6/sallijang/buyer-journey-soak.js"
     ;;
   *)
-    die "unknown scenario: $scenario"
+    die "알 수 없는 테스트 종류: $scenario"
     ;;
 esac
 
@@ -293,7 +293,7 @@ while [[ $# -gt 0 ]]; do
         order|order-create-load) env_pairs+=("K6_ORDER_RATE=${2:?missing value for --rate}") ;;
         create|product-create-load) env_pairs+=("K6_PRODUCT_CREATE_RATE=${2:?missing value for --rate}") ;;
         remaining|product-remaining-load) env_pairs+=("K6_REMAINING_RATE=${2:?missing value for --rate}") ;;
-        *) die "--rate is not supported for scenario: $scenario" ;;
+        *) die "이 테스트에서는 --rate 옵션을 지원하지 않습니다: $scenario" ;;
       esac
       shift 2
       ;;
@@ -304,7 +304,7 @@ while [[ $# -gt 0 ]]; do
         create|product-create-load) env_pairs+=("K6_PRODUCT_CREATE_DURATION=${2:?missing value for --duration}") ;;
         remaining|product-remaining-load) env_pairs+=("K6_REMAINING_DURATION=${2:?missing value for --duration}") ;;
         soak|buyer-journey-soak) env_pairs+=("K6_SOAK_DURATION=${2:?missing value for --duration}") ;;
-        *) die "--duration is not supported for scenario: $scenario" ;;
+        *) die "이 테스트에서는 --duration 옵션을 지원하지 않습니다: $scenario" ;;
       esac
       shift 2
       ;;
@@ -345,7 +345,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --env)
-      [[ "${2:-}" == *=* ]] || die "--env value must be KEY=VALUE"
+      [[ "${2:-}" == *=* ]] || die "--env 값은 KEY=VALUE 형식이어야 합니다"
       env_pairs+=("$2")
       shift 2
       ;;
@@ -358,7 +358,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      die "unknown option: $1"
+      die "알 수 없는 옵션: $1"
       ;;
   esac
 done
@@ -376,7 +376,7 @@ remote_command+=" K6_TESTID=$(shell_quote "$run_id")"
 for pair in "${env_pairs[@]}"; do
   key="${pair%%=*}"
   value="${pair#*=}"
-  [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "invalid env key: $key"
+  [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "잘못된 env key: $key"
   remote_command+=" $key=$(shell_quote "$value")"
 done
 
@@ -386,10 +386,10 @@ params_file="$(mktemp)"
 trap 'rm -f "$params_file"' EXIT
 printf '{"commands":["%s"]}\n' "$(json_escape "$remote_command")" >"$params_file"
 
-echo "scenario: $scenario_file"
-echo "run id:   $run_id"
-echo "runner:   $K6_RUNNER_INSTANCE_ID"
-echo "command:  generated for AWS SSM"
+echo "테스트 파일: $scenario_file"
+echo "Run ID:      $run_id"
+echo "Runner EC2:  $K6_RUNNER_INSTANCE_ID"
+echo "실행 명령:   AWS SSM용 명령 생성 완료"
 
 command_id="$(
   aws ssm send-command \
@@ -402,11 +402,11 @@ command_id="$(
     --output text
 )"
 
-echo "ssm command id: $command_id"
-echo "s3 result: s3://pickup-dev-logs/k6-results/dev/$run_id/"
+echo "SSM command id: $command_id"
+echo "S3 결과 위치: s3://pickup-dev-logs/k6-results/dev/$run_id/"
 
 if [[ "$wait_for_result" == "1" ]]; then
-  echo "waiting for completion..."
+  echo "테스트 완료까지 기다리는 중..."
   aws ssm wait command-executed \
     --profile "$AWS_PROFILE_NAME" \
     --region "$AWS_REGION" \
