@@ -48,6 +48,14 @@ git push origin main
 
 runner는 SSH 인바운드를 열지 않는다. AWS Systems Manager Session Manager로 접속한다.
 
+현재 dev 수동 runner:
+
+- instance id: `i-04a0a7d028c6b9156`
+- private ip: `10.0.1.20`
+- public ip: `43.203.196.15`
+- result bucket prefix: `s3://pickup-dev-logs/k6-results/dev/`
+- repository path: `/opt/sallijang/k6_test`
+
 접속 후 기본 확인:
 
 ```bash
@@ -56,28 +64,56 @@ git -C /opt/sallijang/k6_test status --short
 ls /opt/sallijang/k6_test/tests/performance/k6/sallijang
 ```
 
+로컬 AWS CLI에서 SSM 명령으로도 실행할 수 있다.
+
+```bash
+aws ssm send-command \
+  --profile salijang \
+  --region ap-northeast-2 \
+  --instance-ids i-04a0a7d028c6b9156 \
+  --document-name AWS-RunShellScript \
+  --parameters commands='["sudo K6_BASE_URL=https://api.sallijang.shop RUN_ID=aws-runner-smoke /opt/sallijang/run-k6.sh"]'
+```
+
 ## 기본 실행
 
 기본 smoke:
 
 ```bash
-sudo /opt/sallijang/run-k6.sh
+sudo K6_BASE_URL=https://api.sallijang.shop /opt/sallijang/run-k6.sh
 ```
 
 특정 시나리오 실행:
 
 ```bash
-SCENARIO=tests/performance/k6/sallijang/product-list-load.js sudo -E /opt/sallijang/run-k6.sh
+sudo K6_BASE_URL=https://api.sallijang.shop \
+  SCENARIO=tests/performance/k6/sallijang/product-list-load.js \
+  /opt/sallijang/run-k6.sh
 ```
 
 주문 생성 한계 테스트 예시:
 
 ```bash
-SCENARIO=tests/performance/k6/sallijang/order-create-load.js \
-K6_STORE_ID=1 \
-K6_ORDER_RATE=20 \
-K6_ORDER_DURATION=2m \
-sudo -E /opt/sallijang/run-k6.sh
+sudo K6_BASE_URL=https://api.sallijang.shop \
+  SCENARIO=tests/performance/k6/sallijang/order-create-load.js \
+  K6_STORE_ID=1 \
+  K6_ORDER_RATE=20 \
+  K6_ORDER_DURATION=2m \
+  /opt/sallijang/run-k6.sh
+```
+
+EC2 runner는 EKS Pod가 아니므로 Kubernetes Service DNS인 `product-service`, `order-service`를 직접 해석할 수 없다.
+현재 runner에서는 `K6_BASE_URL=https://api.sallijang.shop`을 명시해서 public ALB 경로로 테스트한다.
+
+짧은 read 부하 테스트 예시:
+
+```bash
+aws ssm send-command \
+  --profile salijang \
+  --region ap-northeast-2 \
+  --instance-ids i-04a0a7d028c6b9156 \
+  --document-name AWS-RunShellScript \
+  --parameters commands='["sudo K6_BASE_URL=https://api.sallijang.shop SCENARIO=tests/performance/k6/sallijang/product-list-load.js K6_READ_RATE=5 K6_READ_DURATION=1m RUN_ID=aws-runner-read-5rps /opt/sallijang/run-k6.sh"]'
 ```
 
 ## 결과 확인
@@ -97,12 +133,24 @@ S3 업로드 위치:
 
 - dev: `s3://<log-bucket>/k6-results/dev/<RUN_ID>/`
 - prod: `s3://<log-bucket>/k6-results/prod/<RUN_ID>/`
+- current dev runner: `s3://pickup-dev-logs/k6-results/dev/<RUN_ID>/`
 
 AWS CLI 확인 예시:
 
 ```bash
 aws s3 ls s3://<log-bucket>/k6-results/dev/
 ```
+
+현재 dev runner 결과 확인:
+
+```bash
+aws s3 ls s3://pickup-dev-logs/k6-results/dev/ --profile salijang --region ap-northeast-2
+```
+
+검증된 실행 결과:
+
+- `aws-runner-public-smoke-20260507-031049`: p95 `94.24ms`, failed `0`
+- `aws-runner-read-5rps-20260507-031322`: p95 `28.01ms`, failed `0`
 
 ## 운영 순서
 
