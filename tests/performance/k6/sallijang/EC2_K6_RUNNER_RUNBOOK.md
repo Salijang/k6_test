@@ -77,9 +77,32 @@ k6 run tests/performance/k6/sallijang/product-list-load.js
 | 방식 | 실행 위치 | 필요 조건 | 용도 |
 | --- | --- | --- | --- |
 | `tests/performance/run-aws-k6.sh ...` | EC2 k6 runner | 로컬 AWS CLI 권한 | 공식 AWS 부하테스트 |
+| `tests/performance/run-sallijang-suite.sh` | 명령을 친 현재 환경 | 로컬 또는 현재 환경의 k6 설치 | 여러 시나리오를 묶어 순차 실행 |
 | `aws ssm send-command ...` | EC2 k6 runner | 로컬 AWS CLI 권한 | wrapper 디버깅 또는 수동 원격 실행 |
 | `aws ssm start-session ...` | EC2 접속 세션 | 로컬 Session Manager Plugin | EC2 안에 직접 들어가서 디버깅 |
 | `k6 run ...` | 로컬 PC | 로컬 k6 설치 | 스크립트 빠른 개발/문법 확인 |
+
+`run-aws-k6.sh`와 `run-sallijang-suite.sh`는 이름이 비슷하지만 기준이 다르다.
+
+- `run-aws-k6.sh`: 로컬에서 실행해도 내부적으로 SSM `send-command`를 사용하므로 실제 k6는 EC2 runner에서 실행된다.
+- `run-sallijang-suite.sh`: SSM을 사용하지 않는다. 이 스크립트를 실행한 환경에서 직접 `k6 run` 또는 `run-with-prometheus.sh`를 호출한다.
+
+따라서 로컬 터미널에서 아래 명령을 실행하면 AWS runner 테스트다.
+
+```bash
+tests/performance/run-aws-k6.sh read --rate 5 --duration 1m --wait
+```
+
+반면 로컬 터미널에서 아래 명령을 실행하면 로컬 PC에서 suite가 실행된다.
+
+```bash
+K6_BASE_URL=https://api.sallijang.shop \
+K6_USE_PROMETHEUS=0 \
+tests/performance/run-sallijang-suite.sh
+```
+
+팀 공용 AWS 부하테스트 표준은 `run-aws-k6.sh`다.
+`run-sallijang-suite.sh`는 로컬 검증이나 현재 shell 환경에서 여러 시나리오를 묶어 돌릴 때 사용한다.
 
 SSM 사용 방식도 두 가지가 있다.
 
