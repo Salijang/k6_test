@@ -65,6 +65,7 @@ ls /opt/sallijang/k6_test/tests/performance/k6/sallijang
 ```
 
 로컬 AWS CLI에서 wrapper script로 실행한다.
+긴 `aws ssm send-command`를 직접 치는 방식은 디버깅용으로만 남겨두고, 일반 사용자는 wrapper를 사용한다.
 
 ```bash
 tests/performance/run-aws-k6.sh
@@ -76,6 +77,11 @@ tests/performance/run-aws-k6.sh step --targets 5,10,20 --hold 1m --run-id step-5
 
 아무 인자 없이 실행하거나 `interactive`로 실행하면 가능한 테스트 목록을 보여주고, 선택한 테스트에 필요한 값을 차례로 입력받는다.
 익숙한 사용자는 한 줄 명령으로 바로 실행하고, 처음 사용하는 사람은 대화형 모드를 사용한다.
+
+대화형 모드에서 `테스트가 끝날 때까지 기다릴까요? y/n [y]:`가 나오면:
+
+- Enter 또는 `y`: 테스트가 끝날 때까지 기다리고 요약 결과를 터미널에 출력한다.
+- `n`: AWS runner에 실행만 요청하고 바로 종료한다. 결과는 S3에서 확인한다.
 
 지원 시나리오:
 
@@ -114,6 +120,33 @@ tests/performance/run-aws-k6.sh order \
   --env K6_PRODUCT_POOL_SIZE=10
 ```
 
+`--wait`를 사용하면 AWS CLI 원본 JSON 대신 사람이 읽기 쉬운 요약 결과를 출력한다.
+
+```text
+========== k6 테스트 결과 ==========
+상태:          Success
+응답 코드:     0
+Run ID:        smoke-20260507-124455
+SSM command:   <command-id>
+S3 결과 위치:  s3://pickup-dev-logs/k6-results/dev/smoke-20260507-124455/
+
+Threshold:
+  ✓ 'rate==1' rate=100.00%
+  ✓ 'p(95)<1000' p(95)=56.59ms
+  ✓ 'rate==0' rate=0.00%
+
+주요 지표:
+  checks_succeeded: 100.00% 2 out of 2
+  http_req_duration: avg=56.59ms min=56.59ms med=56.59ms max=56.59ms p(90)=56.59ms p(95)=56.59ms
+  http_req_failed:   0.00%  0 out of 1
+  http_reqs:         1      13.195691/s
+  iterations:        1      13.195691/s
+
+업로드된 파일:
+  s3://pickup-dev-logs/k6-results/dev/smoke-20260507-124455/summary.json
+  s3://pickup-dev-logs/k6-results/dev/smoke-20260507-124455/run.log
+```
+
 아래처럼 긴 SSM 명령을 직접 실행할 수도 있지만, 일반 사용자는 wrapper script를 우선 사용한다.
 
 ```bash
@@ -125,7 +158,10 @@ aws ssm send-command \
   --parameters commands='["sudo K6_BASE_URL=https://api.sallijang.shop RUN_ID=aws-runner-smoke /opt/sallijang/run-k6.sh"]'
 ```
 
-## 기본 실행
+## Runner 내부 직접 실행
+
+SSM session으로 runner에 직접 접속한 경우에만 아래 명령을 사용한다.
+일반 테스트 실행은 앞의 wrapper script를 우선 사용한다.
 
 기본 smoke:
 
@@ -201,6 +237,8 @@ aws s3 ls s3://pickup-dev-logs/k6-results/dev/ --profile salijang --region ap-no
 
 - `aws-runner-public-smoke-20260507-031049`: p95 `94.24ms`, failed `0`
 - `aws-runner-read-5rps-20260507-031322`: p95 `28.01ms`, failed `0`
+- `wrapper-read-1rps-20260507`: p95 `92.69ms`, failed `0`
+- `pretty-smoke-20260507`: p95 `69.35ms`, failed `0`
 
 ## 운영 순서
 
