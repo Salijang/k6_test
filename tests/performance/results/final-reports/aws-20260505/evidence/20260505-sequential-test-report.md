@@ -1,4 +1,4 @@
-# Sallijang Public API 부하 테스트 순차 보고서 - 2026-05-05
+# Sallijang 1차 AWS 테스트 순차 보고서 - 2026-05-05
 
 대상: `https://api.sallijang.shop`
 주의: public API 도메인이지만 AWS 리소스명/태그는 `dev` 계열로 확인됨. 테스트팀은 인프라/앱 설정을 변경하지 않고 k6 테스트와 읽기 전용 확인만 수행했다.
@@ -208,7 +208,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 
 ## 12. VU 사용 방식
 
-이번 테스트는 VU를 고정해서 태우는 방식이 아니라, k6 `constant-arrival-rate` executor로 목표 RPS를 먼저 정하고 k6가 필요한 VU를 자동 투입하는 방식이다.
+1차 AWS 테스트는 VU를 고정해서 태우는 방식이 아니라, k6 `constant-arrival-rate` executor로 목표 RPS를 먼저 정하고 k6가 필요한 VU를 자동 투입하는 방식이다.
 
 - `preAllocatedVUs`: 미리 확보해 둔 VU 용량
 - `maxVUs`: 부족할 때 늘릴 수 있는 최대 VU 용량

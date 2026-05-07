@@ -1,0 +1,233 @@
+Prometheus remote write: http://localhost:9090/api/v1/write
+k6 testid: 20260423-final-report-product-registration-burst
+Trend stats: p(90),p(95),avg,min,max
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: tests/performance/k6/product-registration-burst.js
+        output: Prometheus remote write (http://localhost:9090/api/v1/write)
+
+     scenarios: (100.00%) 1 scenario, 30 max VUs, 1m25s max duration (incl. graceful stop):
+              * registration_burst: Up to 30 looping VUs for 55s over 3 stages (gracefulRampDown: 30s, gracefulStop: 30s)
+
+
+running (0m01.0s), 01/30 VUs, 0 complete and 0 interrupted iterations
+registration_burst   [   2% ] 01/30 VUs  01.0s/55.0s
+
+running (0m02.0s), 02/30 VUs, 1 complete and 0 interrupted iterations
+registration_burst   [   4% ] 02/30 VUs  02.0s/55.0s
+
+running (0m03.0s), 02/30 VUs, 3 complete and 0 interrupted iterations
+registration_burst   [   5% ] 02/30 VUs  03.0s/55.0s
+
+running (0m04.0s), 03/30 VUs, 5 complete and 0 interrupted iterations
+registration_burst   [   7% ] 03/30 VUs  04.0s/55.0s
+
+running (0m05.0s), 03/30 VUs, 8 complete and 0 interrupted iterations
+registration_burst   [   9% ] 03/30 VUs  05.0s/55.0s
+
+running (0m06.0s), 04/30 VUs, 11 complete and 0 interrupted iterations
+registration_burst   [  11% ] 04/30 VUs  06.0s/55.0s
+
+running (0m09.1s), 05/30 VUs, 15 complete and 0 interrupted iterations
+registration_burst   [  13% ] 05/30 VUs  07.0s/55.0s
+
+running (0m10.1s), 05/30 VUs, 20 complete and 0 interrupted iterations
+registration_burst   [  15% ] 05/30 VUs  08.0s/55.0s
+
+running (0m11.1s), 06/30 VUs, 25 complete and 0 interrupted iterations
+registration_burst   [  16% ] 06/30 VUs  09.0s/55.0s
+
+running (0m12.1s), 06/30 VUs, 31 complete and 0 interrupted iterations
+registration_burst   [  18% ] 06/30 VUs  10.0s/55.0s
+
+running (0m13.1s), 07/30 VUs, 37 complete and 0 interrupted iterations
+registration_burst   [  20% ] 07/30 VUs  11.0s/55.0s
+
+running (0m14.1s), 08/30 VUs, 44 complete and 0 interrupted iterations
+registration_burst   [  22% ] 08/30 VUs  12.0s/55.0s
+
+running (0m15.1s), 08/30 VUs, 52 complete and 0 interrupted iterations
+registration_burst   [  24% ] 08/30 VUs  13.0s/55.0s
+
+running (0m16.1s), 09/30 VUs, 60 complete and 0 interrupted iterations
+registration_burst   [  25% ] 09/30 VUs  14.0s/55.0s
+
+running (0m17.1s), 09/30 VUs, 69 complete and 0 interrupted iterations
+registration_burst   [  27% ] 09/30 VUs  15.0s/55.0s
+
+running (0m18.1s), 10/30 VUs, 78 complete and 0 interrupted iterations
+registration_burst   [  29% ] 10/30 VUs  16.0s/55.0s
+
+running (0m19.1s), 11/30 VUs, 88 complete and 0 interrupted iterations
+registration_burst   [  31% ] 11/30 VUs  17.0s/55.0s
+
+running (0m20.1s), 11/30 VUs, 99 complete and 0 interrupted iterations
+registration_burst   [  33% ] 11/30 VUs  18.0s/55.0s
+
+running (0m21.1s), 12/30 VUs, 110 complete and 0 interrupted iterations
+registration_burst   [  35% ] 12/30 VUs  19.0s/55.0s
+
+running (0m22.1s), 13/30 VUs, 122 complete and 0 interrupted iterations
+registration_burst   [  36% ] 13/30 VUs  20.0s/55.0s
+
+running (0m23.1s), 13/30 VUs, 135 complete and 0 interrupted iterations
+registration_burst   [  38% ] 13/30 VUs  21.0s/55.0s
+
+running (0m24.1s), 14/30 VUs, 148 complete and 0 interrupted iterations
+registration_burst   [  40% ] 14/30 VUs  22.0s/55.0s
+
+running (0m25.1s), 15/30 VUs, 162 complete and 0 interrupted iterations
+registration_burst   [  42% ] 15/30 VUs  23.0s/55.0s
+
+running (0m26.1s), 15/30 VUs, 177 complete and 0 interrupted iterations
+registration_burst   [  44% ] 15/30 VUs  24.0s/55.0s
+
+running (0m27.1s), 16/30 VUs, 192 complete and 0 interrupted iterations
+registration_burst   [  45% ] 16/30 VUs  25.0s/55.0s
+
+running (0m28.1s), 17/30 VUs, 208 complete and 0 interrupted iterations
+registration_burst   [  47% ] 17/30 VUs  26.0s/55.0s
+
+running (0m29.1s), 17/30 VUs, 225 complete and 0 interrupted iterations
+registration_burst   [  49% ] 17/30 VUs  27.0s/55.0s
+
+running (0m30.1s), 18/30 VUs, 242 complete and 0 interrupted iterations
+registration_burst   [  51% ] 18/30 VUs  28.0s/55.0s
+
+running (0m31.1s), 19/30 VUs, 260 complete and 0 interrupted iterations
+registration_burst   [  53% ] 19/30 VUs  29.0s/55.0s
+
+running (0m32.1s), 19/30 VUs, 279 complete and 0 interrupted iterations
+registration_burst   [  55% ] 19/30 VUs  30.0s/55.0s
+
+running (0m33.1s), 20/30 VUs, 298 complete and 0 interrupted iterations
+registration_burst   [  56% ] 20/30 VUs  31.0s/55.0s
+
+running (0m34.1s), 21/30 VUs, 318 complete and 0 interrupted iterations
+registration_burst   [  58% ] 21/30 VUs  32.0s/55.0s
+
+running (0m35.1s), 21/30 VUs, 337 complete and 0 interrupted iterations
+registration_burst   [  60% ] 21/30 VUs  33.0s/55.0s
+
+running (0m36.1s), 22/30 VUs, 358 complete and 0 interrupted iterations
+registration_burst   [  62% ] 22/30 VUs  34.0s/55.0s
+
+running (0m37.1s), 23/30 VUs, 380 complete and 0 interrupted iterations
+registration_burst   [  64% ] 23/30 VUs  35.0s/55.0s
+
+running (0m38.1s), 23/30 VUs, 403 complete and 0 interrupted iterations
+registration_burst   [  65% ] 23/30 VUs  36.0s/55.0s
+
+running (0m40.9s), 24/30 VUs, 426 complete and 0 interrupted iterations
+registration_burst   [  67% ] 24/30 VUs  37.0s/55.0s
+
+running (0m41.9s), 25/30 VUs, 450 complete and 0 interrupted iterations
+registration_burst   [  69% ] 25/30 VUs  38.0s/55.0s
+
+running (0m42.9s), 25/30 VUs, 475 complete and 0 interrupted iterations
+registration_burst   [  71% ] 25/30 VUs  39.0s/55.0s
+
+running (0m43.9s), 26/30 VUs, 500 complete and 0 interrupted iterations
+registration_burst   [  73% ] 26/30 VUs  40.0s/55.0s
+
+running (0m44.9s), 27/30 VUs, 526 complete and 0 interrupted iterations
+registration_burst   [  75% ] 27/30 VUs  41.0s/55.0s
+
+running (0m45.9s), 27/30 VUs, 553 complete and 0 interrupted iterations
+registration_burst   [  76% ] 27/30 VUs  42.0s/55.0s
+
+running (0m46.9s), 28/30 VUs, 580 complete and 0 interrupted iterations
+registration_burst   [  78% ] 28/30 VUs  43.0s/55.0s
+
+running (0m47.9s), 29/30 VUs, 608 complete and 0 interrupted iterations
+registration_burst   [  80% ] 29/30 VUs  44.0s/55.0s
+
+running (0m48.9s), 29/30 VUs, 637 complete and 0 interrupted iterations
+registration_burst   [  82% ] 29/30 VUs  45.0s/55.0s
+
+running (0m49.9s), 30/30 VUs, 666 complete and 0 interrupted iterations
+registration_burst   [  84% ] 30/30 VUs  46.0s/55.0s
+
+running (0m50.9s), 26/30 VUs, 695 complete and 0 interrupted iterations
+registration_burst   [  85% ] 26/30 VUs  47.0s/55.0s
+
+running (0m51.9s), 23/30 VUs, 721 complete and 0 interrupted iterations
+registration_burst   [  87% ] 23/30 VUs  48.0s/55.0s
+
+running (0m52.9s), 20/30 VUs, 744 complete and 0 interrupted iterations
+registration_burst   [  89% ] 20/30 VUs  49.0s/55.0s
+
+running (0m53.9s), 17/30 VUs, 764 complete and 0 interrupted iterations
+registration_burst   [  91% ] 17/30 VUs  50.0s/55.0s
+
+running (0m54.9s), 14/30 VUs, 781 complete and 0 interrupted iterations
+registration_burst   [  93% ] 14/30 VUs  51.0s/55.0s
+
+running (0m55.9s), 10/30 VUs, 795 complete and 0 interrupted iterations
+registration_burst   [  95% ] 10/30 VUs  52.0s/55.0s
+
+running (0m56.9s), 08/30 VUs, 805 complete and 0 interrupted iterations
+registration_burst   [  96% ] 08/30 VUs  53.0s/55.0s
+
+running (0m57.9s), 06/30 VUs, 812 complete and 0 interrupted iterations
+registration_burst   [  98% ] 06/30 VUs  54.0s/55.0s
+
+running (0m58.9s), 02/30 VUs, 818 complete and 0 interrupted iterations
+registration_burst   [ 100% ] 02/30 VUs  55.0s/55.0s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    http_req_duration
+    ✓ 'p(95)<1500' p(95)=18.56ms
+
+    registration_status_5xx
+    ✓ 'count==0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 2460    41.197377/s
+    checks_succeeded...: 100.00% 2460 out of 2460
+    checks_failed......: 0.00%   0 out of 2460
+
+    ✓ registration status is 201 or 409
+    ✓ registration never unauthorized
+    ✓ registration never 5xx
+
+    CUSTOM
+    registration_status_201........: 140    2.344566/s
+    registration_status_409........: 680    11.387893/s
+    registration_status_5xx........: 0      0/s
+
+    HTTP
+    http_req_duration..............: avg=12.47ms min=1.77ms med=13.25ms max=40.6ms  p(90)=17.29ms p(95)=18.56ms
+      { expected_response:true }...: avg=11.93ms min=3.13ms med=13.45ms max=24.75ms p(90)=18.47ms p(95)=20.02ms
+    http_req_failed................: 82.92% 680 out of 820
+    http_reqs......................: 820    13.732459/s
+
+    EXECUTION
+    iteration_duration.............: avg=1.01s   min=1s     med=1.01s   max=1.04s   p(90)=1.01s   p(95)=1.01s  
+    iterations.....................: 820    13.732459/s
+    vus............................: 2      min=1          max=30
+    vus_max........................: 30     min=30         max=30
+
+    NETWORK
+    data_received..................: 246 kB 4.1 kB/s
+    data_sent......................: 298 kB 5.0 kB/s
+
+
+
+
+running (0m59.7s), 00/30 VUs, 820 complete and 0 interrupted iterations
+registration_burst ✓ [ 100% ] 00/30 VUs  55s

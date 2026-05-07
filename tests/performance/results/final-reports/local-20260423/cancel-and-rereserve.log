@@ -1,0 +1,114 @@
+Prometheus remote write: http://localhost:9090/api/v1/write
+k6 testid: 20260423-final-report-cancel-and-rereserve
+Trend stats: p(90),p(95),avg,min,max
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: tests/performance/k6/cancel-and-rereserve.js
+        output: Prometheus remote write (http://localhost:9090/api/v1/write)
+
+     scenarios: (100.00%) 1 scenario, 10 max VUs, 1m30s max duration (incl. graceful stop):
+              * cancel_and_rereserve: 10 iterations for each of 10 VUs (maxDuration: 1m0s, gracefulStop: 30s)
+
+
+running (0m01.0s), 10/10 VUs, 0 complete and 0 interrupted iterations
+cancel_and_rereserve   [   0% ] 10 VUs  0m01.0s/1m0s  000/100 iters, 10 per VU
+
+running (0m02.0s), 10/10 VUs, 10 complete and 0 interrupted iterations
+cancel_and_rereserve   [  10% ] 10 VUs  0m02.0s/1m0s  010/100 iters, 10 per VU
+
+running (0m03.0s), 10/10 VUs, 20 complete and 0 interrupted iterations
+cancel_and_rereserve   [  20% ] 10 VUs  0m03.0s/1m0s  020/100 iters, 10 per VU
+
+running (0m04.0s), 10/10 VUs, 30 complete and 0 interrupted iterations
+cancel_and_rereserve   [  30% ] 10 VUs  0m04.0s/1m0s  030/100 iters, 10 per VU
+
+running (0m05.0s), 10/10 VUs, 40 complete and 0 interrupted iterations
+cancel_and_rereserve   [  40% ] 10 VUs  0m05.0s/1m0s  040/100 iters, 10 per VU
+
+running (0m06.0s), 10/10 VUs, 50 complete and 0 interrupted iterations
+cancel_and_rereserve   [  50% ] 10 VUs  0m06.0s/1m0s  050/100 iters, 10 per VU
+
+running (0m07.0s), 10/10 VUs, 60 complete and 0 interrupted iterations
+cancel_and_rereserve   [  60% ] 10 VUs  0m07.0s/1m0s  060/100 iters, 10 per VU
+
+running (0m08.0s), 10/10 VUs, 70 complete and 0 interrupted iterations
+cancel_and_rereserve   [  70% ] 10 VUs  0m08.0s/1m0s  070/100 iters, 10 per VU
+
+running (0m09.0s), 10/10 VUs, 80 complete and 0 interrupted iterations
+cancel_and_rereserve   [  80% ] 10 VUs  0m09.0s/1m0s  080/100 iters, 10 per VU
+
+running (0m10.0s), 10/10 VUs, 84 complete and 0 interrupted iterations
+cancel_and_rereserve   [  84% ] 10 VUs  0m10.0s/1m0s  084/100 iters, 10 per VU
+
+running (0m11.0s), 07/10 VUs, 93 complete and 0 interrupted iterations
+cancel_and_rereserve   [  93% ] 10 VUs  0m11.0s/1m0s  093/100 iters, 10 per VU
+
+
+  █ THRESHOLDS 
+
+    cancel_flow_status_409
+    ✓ 'count==0' count=0
+
+    cancel_flow_status_5xx
+    ✓ 'count==0' count=0
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    http_req_duration
+    ✓ 'p(95)<2000' p(95)=30.28ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 1420    127.541001/s
+    checks_succeeded...: 100.00% 1420 out of 1420
+    checks_failed......: 0.00%   0 out of 1420
+
+    ✓ cancel setup product status is 201
+    ✓ list slots status is 200
+    ✓ list products status is 200
+    ✓ create status is 201
+    ✓ product stock decremented on create
+    ✓ slot capacity decremented on create
+    ✓ cancel status is 200
+    ✓ product stock restored on cancel
+    ✓ slot capacity restored on cancel
+    ✓ rereserve status is 201
+    ✓ final cancel status is 200
+
+    CUSTOM
+    cancel_flow_cancel_200.........: 200    17.963521/s
+    cancel_flow_create_201.........: 100    8.981761/s
+    cancel_flow_rereserve_201......: 100    8.981761/s
+    cancel_flow_status_409.........: 0      0/s
+    cancel_flow_status_5xx.........: 0      0/s
+
+    HTTP
+    http_req_duration..............: avg=8.84ms min=630.21µs med=4.73ms max=74.86ms p(90)=22.22ms p(95)=30.28ms
+      { expected_response:true }...: avg=8.84ms min=630.21µs med=4.73ms max=74.86ms p(90)=22.22ms p(95)=30.28ms
+    http_req_failed................: 0.00%  0 out of 1020
+    http_reqs......................: 1020   91.613958/s
+
+    EXECUTION
+    iteration_duration.............: avg=1.09s  min=1.03s    med=1.08s  max=1.18s   p(90)=1.15s   p(95)=1.16s  
+    iterations.....................: 100    8.981761/s
+    vus............................: 7      min=7         max=10
+    vus_max........................: 10     min=10        max=10
+
+    NETWORK
+    data_received..................: 17 MB  1.5 MB/s
+    data_sent......................: 173 kB 16 kB/s
+
+
+
+
+running (0m11.1s), 00/10 VUs, 100 complete and 0 interrupted iterations
+cancel_and_rereserve ✓ [ 100% ] 10 VUs  0m11.1s/1m0s  100/100 iters, 10 per VU

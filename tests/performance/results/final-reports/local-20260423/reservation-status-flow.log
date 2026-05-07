@@ -1,0 +1,114 @@
+Prometheus remote write: http://localhost:9090/api/v1/write
+k6 testid: 20260423-final-report-reservation-status-flow
+Trend stats: p(90),p(95),avg,min,max
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: tests/performance/k6/reservation-status-flow.js
+        output: Prometheus remote write (http://localhost:9090/api/v1/write)
+
+     scenarios: (100.00%) 1 scenario, 10 max VUs, 1m30s max duration (incl. graceful stop):
+              * reservation_status_flow: 10 iterations for each of 10 VUs (maxDuration: 1m0s, gracefulStop: 30s)
+
+
+running (0m01.0s), 10/10 VUs, 0 complete and 0 interrupted iterations
+reservation_status_flow   [   0% ] 10 VUs  0m01.0s/1m0s  000/100 iters, 10 per VU
+
+running (0m02.0s), 10/10 VUs, 10 complete and 0 interrupted iterations
+reservation_status_flow   [  10% ] 10 VUs  0m02.0s/1m0s  010/100 iters, 10 per VU
+
+running (0m03.0s), 10/10 VUs, 20 complete and 0 interrupted iterations
+reservation_status_flow   [  20% ] 10 VUs  0m03.0s/1m0s  020/100 iters, 10 per VU
+
+running (0m04.0s), 10/10 VUs, 30 complete and 0 interrupted iterations
+reservation_status_flow   [  30% ] 10 VUs  0m04.0s/1m0s  030/100 iters, 10 per VU
+
+running (0m05.0s), 10/10 VUs, 40 complete and 0 interrupted iterations
+reservation_status_flow   [  40% ] 10 VUs  0m05.0s/1m0s  040/100 iters, 10 per VU
+
+running (0m06.0s), 10/10 VUs, 50 complete and 0 interrupted iterations
+reservation_status_flow   [  50% ] 10 VUs  0m06.0s/1m0s  050/100 iters, 10 per VU
+
+running (0m07.0s), 10/10 VUs, 60 complete and 0 interrupted iterations
+reservation_status_flow   [  60% ] 10 VUs  0m07.0s/1m0s  060/100 iters, 10 per VU
+
+running (0m08.0s), 10/10 VUs, 70 complete and 0 interrupted iterations
+reservation_status_flow   [  70% ] 10 VUs  0m08.0s/1m0s  070/100 iters, 10 per VU
+
+running (0m09.0s), 10/10 VUs, 80 complete and 0 interrupted iterations
+reservation_status_flow   [  80% ] 10 VUs  0m09.0s/1m0s  080/100 iters, 10 per VU
+
+running (0m12.0s), 10/10 VUs, 90 complete and 0 interrupted iterations
+reservation_status_flow   [  90% ] 10 VUs  0m10.0s/1m0s  090/100 iters, 10 per VU
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    http_req_duration
+    ✓ 'p(95)<2000' p(95)=16.92ms
+
+    status_flow_status_409
+    ✓ 'count==0' count=0
+
+    status_flow_status_5xx
+    ✓ 'count==0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 820     65.608268/s
+    checks_succeeded...: 100.00% 820 out of 820
+    checks_failed......: 0.00%   0 out of 820
+
+    ✓ status flow setup product status is 201
+    ✓ list slots status is 200
+    ✓ status flow create status is 201
+    ✓ list reservations status is 200
+    ✓ status flow reservation visible after create
+    ✓ status flow no show status is 200
+    ✓ status flow no show body is NO_SHOW
+    ✓ status flow reservation visible after no show
+    ✓ status flow ready status is 200
+    ✓ status flow ready body is READY
+    ✓ status flow picked up status is 200
+    ✓ status flow picked up body is PICKED_UP
+    ✓ status flow reservation visible after pickup
+
+    CUSTOM
+    status_flow_create_201.........: 100    8.001008/s
+    status_flow_no_show_200........: 50     4.000504/s
+    status_flow_picked_200.........: 50     4.000504/s
+    status_flow_ready_200..........: 50     4.000504/s
+    status_flow_status_409.........: 0      0/s
+    status_flow_status_5xx.........: 0      0/s
+
+    HTTP
+    http_req_duration..............: avg=9.02ms min=601.7µs med=5.65ms max=105.28ms p(90)=12.97ms p(95)=16.92ms
+      { expected_response:true }...: avg=9.02ms min=601.7µs med=5.65ms max=105.28ms p(90)=12.97ms p(95)=16.92ms
+    http_req_failed................: 0.00%  0 out of 470
+    http_reqs......................: 470    37.604739/s
+
+    EXECUTION
+    iteration_duration.............: avg=1.04s  min=1.01s   med=1.02s  max=1.22s    p(90)=1.05s   p(95)=1.14s  
+    iterations.....................: 100    8.001008/s
+    vus............................: 10     min=10       max=10
+    vus_max........................: 10     min=10       max=10
+
+    NETWORK
+    data_received..................: 767 kB 61 kB/s
+    data_sent......................: 111 kB 8.8 kB/s
+
+
+
+
+running (0m12.5s), 00/10 VUs, 100 complete and 0 interrupted iterations
+reservation_status_flow ✓ [ 100% ] 10 VUs  0m10.5s/1m0s  100/100 iters, 10 per VU

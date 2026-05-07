@@ -1,4 +1,4 @@
-# Public API Write Scenarios Test - 2026-05-05
+# Sallijang 1차 AWS 테스트 쓰기 시나리오 보고서 - 2026-05-05
 
 대상: `https://api.sallijang.shop`
 
@@ -171,7 +171,7 @@ VU 관찰:
 | 주문 10 RPS + probe | pre `100`, max `1000` | `3` | 0 |
 | 주문 20 RPS | pre `300`, max `1500` | `397` | 98 |
 
-해석: 이번 테스트는 `constant-arrival-rate` 방식이라 VU 고정 부하가 아니라 목표 RPS를 맞추기 위해 k6가 VU를 자동 투입했다. 상품 생성/삭제 80 RPS는 VU 여유가 있었는데도 502가 발생했고, 재고 차감 240 RPS와 주문 20 RPS는 VU가 크게 늘고 dropped가 발생했다. VU 부족보다는 서버 응답 지연 또는 진입점 처리 실패 누적으로 판단한다.
+해석: 1차 AWS 테스트는 `constant-arrival-rate` 방식이라 VU 고정 부하가 아니라 목표 RPS를 맞추기 위해 k6가 VU를 자동 투입했다. 상품 생성/삭제 80 RPS는 VU 여유가 있었는데도 502가 발생했고, 재고 차감 240 RPS와 주문 20 RPS는 VU가 크게 늘고 dropped가 발생했다. VU 부족보다는 서버 응답 지연 또는 진입점 처리 실패 누적으로 판단한다.
 
 테스트 데이터 정리:
 

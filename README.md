@@ -8,7 +8,10 @@ Salijang public API를 대상으로 k6 부하 테스트 시나리오, 실행 스
 - `tests/performance/shared/env/sallijang.example.env`: 실행 환경 변수 예시
 - `tests/performance/prepare-sallijang-test-env.sh`: 테스트 seller/buyer/store 준비 스크립트
 - `tests/performance/run-sallijang-suite.sh`: smoke/read 중심 suite 실행 스크립트
-- `tests/performance/results/20260505-final-report-package/`: 2026-05-05 최종 보고서 패키지
+- `tests/performance/results/final-reports/local-20260423/`: 2026-04-23 로컬 테스트 최종 보고서
+- `tests/performance/results/final-reports/aws-20260505/`: 2026-05-05 1차 AWS/public API 최종 보고서 패키지
+- `tests/performance/results/final-reports/aws-2nd-test-plan.md`: 2차 AWS 부하 테스트 계획서
+- `tests/performance/results/final-reports/aws-2nd-test-report.md`: 2026-05-07 2차 AWS 테스트 결과 보고서
 
 ## 빠른 시작
 
@@ -77,7 +80,10 @@ AWS에서 실행하는 k6 runner는 로컬 파일을 직접 복사해서 쓰지 
 - 사용자 역할별 API 호출: [tests/performance/k6/sallijang/USER_ROLE_API_CALLS.md](tests/performance/k6/sallijang/USER_ROLE_API_CALLS.md)
 - dev 테스트 계획: [tests/performance/k6/sallijang/DEV_TEST_PLAN.md](tests/performance/k6/sallijang/DEV_TEST_PLAN.md)
 - 라우팅 런북: [tests/performance/k6/sallijang/DEV_API_ROUTING_RUNBOOK.md](tests/performance/k6/sallijang/DEV_API_ROUTING_RUNBOOK.md)
-- 최종 보고서 패키지: [tests/performance/results/20260505-final-report-package/README.md](tests/performance/results/20260505-final-report-package/README.md)
+- 로컬 테스트 최종 보고서: [tests/performance/results/final-reports/local-20260423/final-report.md](tests/performance/results/final-reports/local-20260423/final-report.md)
+- 1차 AWS/public API 최종 보고서 패키지: [tests/performance/results/final-reports/aws-20260505/README.md](tests/performance/results/final-reports/aws-20260505/README.md)
+- 2차 AWS 부하 테스트 계획서: [tests/performance/results/final-reports/aws-2nd-test-plan.md](tests/performance/results/final-reports/aws-2nd-test-plan.md)
+- 2차 AWS 테스트 결과 보고서: [tests/performance/results/final-reports/aws-2nd-test-report.md](tests/performance/results/final-reports/aws-2nd-test-report.md)
 
 ## 주의
 

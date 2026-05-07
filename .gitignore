@@ -6,4 +6,6 @@ coverage
 .env.local
 npm-debug.log*
 *.tsbuildinfo
-tests/performance/results/
+tests/performance/results/*
+!tests/performance/results/final-reports/
+!tests/performance/results/final-reports/**

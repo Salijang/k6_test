@@ -90,7 +90,7 @@ export function pickBuyerAccessToken() {
 export function requestOptions(endpoint, extraHeaders = {}, accessToken = pickAccessToken()) {
   const params = headersWithAccessToken(extraHeaders, accessToken);
   if (endpoint) {
-    params.tags = { endpoint };
+    params.tags = { endpoint, name: endpoint };
   }
   return params;
 }
