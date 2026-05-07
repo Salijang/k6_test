@@ -80,6 +80,91 @@ json_escape() {
   printf '%s' "$value"
 }
 
+json_string_value() {
+  local file_path="$1"
+  local key="$2"
+  node -e '
+const fs = require("fs");
+const input = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+process.stdout.write(String(input[process.argv[2]] ?? ""));
+' "$file_path" "$key"
+}
+
+extract_metric_line() {
+  local text="$1"
+  local metric="$2"
+  printf '%s\n' "$text" | sed -n "s/^[[:space:]]*${metric}[.]*:[[:space:]]*//p" | tail -n 1
+}
+
+extract_threshold_lines() {
+  local text="$1"
+  printf '%s\n' "$text" | sed -n "/^[[:space:]]*█ THRESHOLDS/,/^[[:space:]]*█ TOTAL RESULTS/p" \
+    | grep -E "^[[:space:]]*[✓✗]" \
+    | sed "s/^[[:space:]]*/  /"
+}
+
+print_pretty_result() {
+  local invocation_file="$1"
+  local run_id_value="$2"
+  local command_id_value="$3"
+  local s3_uri="$4"
+
+  local status response_code stdout stderr checks http_duration http_failed http_reqs iterations thresholds uploads
+  status="$(json_string_value "$invocation_file" "Status")"
+  response_code="$(json_string_value "$invocation_file" "ResponseCode")"
+  stdout="$(json_string_value "$invocation_file" "StandardOutputContent")"
+  stderr="$(json_string_value "$invocation_file" "StandardErrorContent")"
+
+  checks="$(extract_metric_line "$stdout" "checks_succeeded")"
+  http_duration="$(extract_metric_line "$stdout" "http_req_duration")"
+  http_failed="$(extract_metric_line "$stdout" "http_req_failed")"
+  http_reqs="$(extract_metric_line "$stdout" "http_reqs")"
+  iterations="$(extract_metric_line "$stdout" "iterations")"
+  thresholds="$(extract_threshold_lines "$stdout")"
+  uploads="$(printf '%s\n' "$stdout" | grep -E "upload: .* to s3://" | sed "s/.* to /  /" || true)"
+
+  echo
+  echo "========== k6 테스트 결과 =========="
+  echo "상태:          $status"
+  echo "응답 코드:     $response_code"
+  echo "Run ID:        $run_id_value"
+  echo "SSM command:   $command_id_value"
+  echo "S3 결과 위치:  $s3_uri"
+
+  if [[ -n "$thresholds" ]]; then
+    echo
+    echo "Threshold:"
+    printf '%s\n' "$thresholds"
+  fi
+
+  echo
+  echo "주요 지표:"
+  [[ -n "$checks" ]] && echo "  checks_succeeded: $checks"
+  [[ -n "$http_duration" ]] && echo "  http_req_duration: $http_duration"
+  [[ -n "$http_failed" ]] && echo "  http_req_failed:   $http_failed"
+  [[ -n "$http_reqs" ]] && echo "  http_reqs:         $http_reqs"
+  [[ -n "$iterations" ]] && echo "  iterations:        $iterations"
+
+  if [[ -n "$uploads" ]]; then
+    echo
+    echo "업로드된 파일:"
+    printf '%s\n' "$uploads"
+  fi
+
+  if [[ -n "$stderr" ]]; then
+    echo
+    echo "참고 로그:"
+    printf '%s\n' "$stderr" | sed "s/^/  /"
+  fi
+
+  if [[ "$status" != "Success" || "$response_code" != "0" ]]; then
+    echo
+    echo "실패 상세 로그:"
+    printf '%s\n' "$stdout" | tail -n 80 | sed "s/^/  /"
+    return 1
+  fi
+}
+
 prompt_default() {
   local prompt="$1"
   local default_value="$2"
@@ -403,7 +488,8 @@ command_id="$(
 )"
 
 echo "SSM command id: $command_id"
-echo "S3 결과 위치: s3://pickup-dev-logs/k6-results/dev/$run_id/"
+s3_result_uri="s3://pickup-dev-logs/k6-results/dev/$run_id/"
+echo "S3 결과 위치: $s3_result_uri"
 
 if [[ "$wait_for_result" == "1" ]]; then
   echo "테스트 완료까지 기다리는 중..."
@@ -413,11 +499,13 @@ if [[ "$wait_for_result" == "1" ]]; then
     --command-id "$command_id" \
     --instance-id "$K6_RUNNER_INSTANCE_ID"
 
+  invocation_file="$(mktemp)"
   aws ssm get-command-invocation \
     --profile "$AWS_PROFILE_NAME" \
     --region "$AWS_REGION" \
     --command-id "$command_id" \
     --instance-id "$K6_RUNNER_INSTANCE_ID" \
-    --query "{Status:Status,ResponseCode:ResponseCode,Stdout:StandardOutputContent,Stderr:StandardErrorContent}" \
-    --output json
+    --output json >"$invocation_file"
+
+  print_pretty_result "$invocation_file" "$run_id" "$command_id" "$s3_result_uri"
 fi
