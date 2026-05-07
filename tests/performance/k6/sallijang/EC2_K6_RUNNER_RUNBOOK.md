@@ -81,8 +81,25 @@ k6 run tests/performance/k6/sallijang/product-list-load.js
 | `aws ssm start-session ...` | EC2 접속 세션 | 로컬 Session Manager Plugin | EC2 안에 직접 들어가서 디버깅 |
 | `k6 run ...` | 로컬 PC | 로컬 k6 설치 | 스크립트 빠른 개발/문법 확인 |
 
-`aws ssm start-session`은 EC2 터미널에 직접 들어가는 명령이다.
-테스트 실행만 할 때는 필요하지 않으며, 로컬에 Session Manager Plugin이 없으면 실패할 수 있다.
+SSM 사용 방식도 두 가지가 있다.
+
+| SSM 방식 | 의미 | 로컬 Session Manager Plugin |
+| --- | --- | --- |
+| `aws ssm send-command` | EC2에 명령만 전달하고 실행 결과를 받아온다. 터미널에 들어가지 않는다. | 필요 없음 |
+| `aws ssm start-session` | 로컬 터미널과 EC2 터미널을 실시간으로 연결한다. | 필요함 |
+
+`tests/performance/run-aws-k6.sh`는 내부에서 `aws ssm send-command`를 사용한다.
+그래서 로컬에 Session Manager Plugin이 없어도 테스트 실행은 가능하다.
+
+반대로 `aws ssm start-session`은 EC2 터미널에 직접 들어가는 명령이다.
+이 명령은 로컬에 Session Manager Plugin이 없으면 아래처럼 실패한다.
+
+```text
+aws: [ERROR]: SessionManagerPlugin is not found.
+```
+
+테스트 실행만 할 때는 `start-session`이 필요하지 않다.
+EC2 안에서 직접 파일 확인, 프로세스 확인, 수동 디버깅을 해야 할 때만 사용한다.
 
 ## Runner가 꺼져 있을 때
 
