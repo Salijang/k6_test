@@ -10,8 +10,11 @@ RUNNER_SCRIPT="${RUNNER_SCRIPT:-/opt/sallijang/run-k6.sh}"
 usage() {
   cat <<'USAGE'
 사용법:
-  tests/performance/run-aws-k6.sh
-  tests/performance/run-aws-k6.sh interactive
+  ./k6aws
+  ./k6aws interactive
+  ./k6aws <scenario> [options]
+
+원본 경로:
   tests/performance/run-aws-k6.sh <scenario> [options]
 
 테스트 종류:
@@ -54,10 +57,10 @@ Spike 옵션:
   --token <token>
 
 예시:
-  tests/performance/run-aws-k6.sh smoke --wait
-  tests/performance/run-aws-k6.sh read --rate 5 --duration 1m --run-id read-5rps --wait
-  tests/performance/run-aws-k6.sh step --targets 5,10,20 --hold 1m --run-id step-5-20
-  tests/performance/run-aws-k6.sh order --store-id 1 --rate 2 --duration 1m --buyer-token "$K6_BUYER_ACCESS_TOKEN"
+  ./k6aws smoke --wait
+  ./k6aws read --rate 5 --duration 1m --run-id read-5rps --wait
+  ./k6aws step --targets 5,10,20 --hold 1m --run-id step-5-20
+  ./k6aws order --store-id 1 --rate 2 --duration 1m --buyer-token "$K6_BUYER_ACCESS_TOKEN"
 
 환경변수로 기본값 변경:
   AWS_PROFILE_NAME, AWS_REGION, K6_RUNNER_INSTANCE_ID, K6_BASE_URL, RUNNER_SCRIPT
