@@ -44,6 +44,78 @@ git push origin main
 
 테스트 결과, 보고서 이미지, env 파일은 커밋 대상인지 먼저 확인한다. 실제 token/cookie가 들어간 파일은 커밋하지 않는다.
 
+## 실행 위치 구분
+
+`tests/performance/run-aws-k6.sh`는 로컬에서 실행하지만, k6 자체를 로컬에서 돌리는 명령이 아니다.
+로컬은 AWS SSM에 실행 요청을 보내는 리모컨 역할만 한다.
+
+```text
+로컬 터미널
+  -> AWS SSM send-command 요청
+  -> EC2 k6 runner
+  -> /opt/sallijang/run-k6.sh 실행
+  -> EC2 안에서 k6 실행
+  -> https://api.sallijang.shop 로 부하 발생
+  -> S3에 결과 업로드
+```
+
+따라서 아래 명령은 EC2 runner에서 부하를 발생시킨다.
+
+```bash
+tests/performance/run-aws-k6.sh read --rate 5 --duration 1m --wait
+```
+
+반대로 아래 명령은 로컬 PC에서 직접 k6를 실행한다.
+
+```bash
+K6_BASE_URL=https://api.sallijang.shop \
+k6 run tests/performance/k6/sallijang/product-list-load.js
+```
+
+두 방식의 차이:
+
+| 방식 | 실행 위치 | 필요 조건 | 용도 |
+| --- | --- | --- | --- |
+| `tests/performance/run-aws-k6.sh ...` | EC2 k6 runner | 로컬 AWS CLI 권한 | 공식 AWS 부하테스트 |
+| `aws ssm send-command ...` | EC2 k6 runner | 로컬 AWS CLI 권한 | wrapper 디버깅 또는 수동 원격 실행 |
+| `aws ssm start-session ...` | EC2 접속 세션 | 로컬 Session Manager Plugin | EC2 안에 직접 들어가서 디버깅 |
+| `k6 run ...` | 로컬 PC | 로컬 k6 설치 | 스크립트 빠른 개발/문법 확인 |
+
+`aws ssm start-session`은 EC2 터미널에 직접 들어가는 명령이다.
+테스트 실행만 할 때는 필요하지 않으며, 로컬에 Session Manager Plugin이 없으면 실패할 수 있다.
+
+## Runner가 꺼져 있을 때
+
+`tests/performance/run-aws-k6.sh`는 테스트 실행 전에 runner 상태를 확인한다.
+
+확인 조건:
+
+- EC2 instance state가 `running`
+- SSM managed instance `PingStatus`가 `Online`
+
+runner가 꺼져 있거나 SSM에 붙어 있지 않으면 테스트를 실행하지 않고 아래처럼 원인을 알려준다.
+
+```text
+오류: runner EC2가 실행 중이 아닙니다.
+- instance id: i-04a0a7d028c6b9156
+- current state: stopped
+```
+
+또는:
+
+```text
+오류: runner EC2는 running 상태지만 SSM 연결이 Online이 아닙니다.
+```
+
+이 경우에는 runner를 먼저 시작하거나 Terraform으로 runner를 생성한 뒤 다시 실행한다.
+EC2를 막 켠 직후라면 SSM agent가 등록될 때까지 1-2분 기다린 뒤 재시도한다.
+
+사전 확인을 의도적으로 생략해야 하는 디버깅 상황에서는 `--skip-runner-check`를 붙일 수 있다.
+
+```bash
+tests/performance/run-aws-k6.sh smoke --skip-runner-check
+```
+
 ## Runner 접속
 
 runner는 SSH 인바운드를 열지 않는다. AWS Systems Manager Session Manager로 접속한다.

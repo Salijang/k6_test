@@ -32,6 +32,7 @@ usage() {
   --region <region>         기본값: ap-northeast-2
   --env KEY=VALUE           임의 k6 환경변수 추가. 여러 번 사용 가능
   --wait                    테스트 완료까지 기다린 뒤 실행 결과 출력
+  --skip-runner-check       EC2/SSM 사전 상태 확인 생략
 
 조회/쓰기 부하 옵션:
   --rate <rps>              read/order/create/remaining RPS
@@ -163,6 +164,63 @@ print_pretty_result() {
     printf '%s\n' "$stdout" | tail -n 80 | sed "s/^/  /"
     return 1
   fi
+}
+
+check_runner_ready() {
+  echo "Runner 상태 확인 중..."
+
+  local ec2_state ssm_ping
+  ec2_state="$(
+    aws ec2 describe-instances \
+      --profile "$AWS_PROFILE_NAME" \
+      --region "$AWS_REGION" \
+      --instance-ids "$K6_RUNNER_INSTANCE_ID" \
+      --query "Reservations[0].Instances[0].State.Name" \
+      --output text 2>/dev/null || true
+  )"
+
+  if [[ -z "$ec2_state" || "$ec2_state" == "None" ]]; then
+    die "runner EC2를 찾을 수 없습니다: $K6_RUNNER_INSTANCE_ID"
+  fi
+
+  if [[ "$ec2_state" != "running" ]]; then
+    cat >&2 <<MSG
+오류: runner EC2가 실행 중이 아닙니다.
+- instance id: $K6_RUNNER_INSTANCE_ID
+- current state: $ec2_state
+
+이 상태에서는 EC2에서 k6를 실행할 수 없습니다.
+runner를 먼저 시작하거나 Terraform으로 runner를 생성한 뒤 다시 실행하세요.
+MSG
+    exit 1
+  fi
+
+  ssm_ping="$(
+    aws ssm describe-instance-information \
+      --profile "$AWS_PROFILE_NAME" \
+      --region "$AWS_REGION" \
+      --filters "Key=InstanceIds,Values=$K6_RUNNER_INSTANCE_ID" \
+      --query "InstanceInformationList[0].PingStatus" \
+      --output text 2>/dev/null || true
+  )"
+
+  if [[ "$ssm_ping" != "Online" ]]; then
+    cat >&2 <<MSG
+오류: runner EC2는 running 상태지만 SSM 연결이 Online이 아닙니다.
+- instance id: $K6_RUNNER_INSTANCE_ID
+- SSM status: ${ssm_ping:-unknown}
+
+가능한 원인:
+- EC2 부팅 직후라 SSM agent 등록이 아직 안 됨
+- IAM role에 AmazonSSMManagedInstanceCore 권한 없음
+- 네트워크/VPC endpoint/인터넷 egress 문제
+
+잠시 후 다시 실행하거나 runner 상태를 확인하세요.
+MSG
+    exit 1
+  fi
+
+  echo "Runner 상태: EC2 running, SSM Online"
 }
 
 prompt_default() {
@@ -318,6 +376,7 @@ shift
 scenario_file=""
 declare -a env_pairs
 wait_for_result=0
+skip_runner_check=0
 run_id=""
 
 case "$scenario" in
@@ -438,6 +497,10 @@ while [[ $# -gt 0 ]]; do
       wait_for_result=1
       shift
       ;;
+    --skip-runner-check)
+      skip_runner_check=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -475,6 +538,10 @@ echo "테스트 파일: $scenario_file"
 echo "Run ID:      $run_id"
 echo "Runner EC2:  $K6_RUNNER_INSTANCE_ID"
 echo "실행 명령:   AWS SSM용 명령 생성 완료"
+
+if [[ "$skip_runner_check" != "1" ]]; then
+  check_runner_ready
+fi
 
 command_id="$(
   aws ssm send-command \
