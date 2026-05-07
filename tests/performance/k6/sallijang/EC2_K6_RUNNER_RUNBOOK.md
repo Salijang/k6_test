@@ -64,7 +64,57 @@ git -C /opt/sallijang/k6_test status --short
 ls /opt/sallijang/k6_test/tests/performance/k6/sallijang
 ```
 
-로컬 AWS CLI에서 SSM 명령으로도 실행할 수 있다.
+로컬 AWS CLI에서 wrapper script로 실행한다.
+
+```bash
+tests/performance/run-aws-k6.sh
+tests/performance/run-aws-k6.sh interactive
+tests/performance/run-aws-k6.sh smoke --wait
+tests/performance/run-aws-k6.sh read --rate 5 --duration 1m --run-id read-5rps --wait
+tests/performance/run-aws-k6.sh step --targets 5,10,20 --hold 1m --run-id step-5-20
+```
+
+아무 인자 없이 실행하거나 `interactive`로 실행하면 가능한 테스트 목록을 보여주고, 선택한 테스트에 필요한 값을 차례로 입력받는다.
+익숙한 사용자는 한 줄 명령으로 바로 실행하고, 처음 사용하는 사람은 대화형 모드를 사용한다.
+
+지원 시나리오:
+
+- `smoke`: 기본 연결 확인
+- `read`: 상품 목록 조회 고정 RPS
+- `step`: 상품 목록 조회 단계 상승
+- `spike`: 순간 트래픽 급증
+- `order`: 주문 생성
+- `create`: 상품 생성/삭제
+- `remaining`: 재고 변경
+- `soak`: 구매자 여정 장시간 테스트
+
+설정값은 옵션이나 환경변수로 바꿀 수 있다.
+
+```bash
+tests/performance/run-aws-k6.sh read \
+  --rate 20 \
+  --duration 2m \
+  --run-id read-20rps
+
+K6_RUNNER_INSTANCE_ID=i-04a0a7d028c6b9156 \
+K6_BASE_URL=https://api.sallijang.shop \
+tests/performance/run-aws-k6.sh spike \
+  --base-rate 5 \
+  --spike-rate 50
+```
+
+토큰이나 아직 wrapper에 별도 옵션이 없는 k6 변수는 `--env KEY=VALUE`로 넘긴다.
+
+```bash
+tests/performance/run-aws-k6.sh order \
+  --store-id 1 \
+  --rate 2 \
+  --duration 1m \
+  --buyer-token "$K6_BUYER_ACCESS_TOKEN" \
+  --env K6_PRODUCT_POOL_SIZE=10
+```
+
+아래처럼 긴 SSM 명령을 직접 실행할 수도 있지만, 일반 사용자는 wrapper script를 우선 사용한다.
 
 ```bash
 aws ssm send-command \
