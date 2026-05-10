@@ -20,6 +20,10 @@ EC2 k6 runner 운영 절차는 [EC2_K6_RUNNER_RUNBOOK.md](EC2_K6_RUNNER_RUNBOOK.
   - 목적: 주문 생성 API의 정상 부하 기준 확인
   - 기본값: `10 RPS`, `2m`, `p95 < 1500ms`
   - 기본 동작은 setup에서 상품 pool을 만들고 teardown에서 soft delete 한다.
+- `order-hot-product-race.js`
+  - 목적: 특정 인기 상품에 주문이 몰릴 때 성공/재고부족/의존성 실패/서버 오류를 분리 관찰
+  - 기본값: `20 RPS`, `2m`, 상품 `1개`, 상품당 재고 `300`, `p95 < 3000ms`
+  - Grafana `Sallijang Hot Product Reservation Load` 대시보드와 맞춘 커스텀 카운터를 발행한다.
 - `product-create-load.js`
   - 목적: 상품 생성 API의 쓰기 부하 기준 확인
   - 기본값: `5 RPS`, `1m`, `p95 < 2000ms`
@@ -140,6 +144,33 @@ K6_READ_RATE=20 K6_READ_DURATION=2m k6 run tests/performance/k6/sallijang/produc
 K6_STORE_ID=1 K6_ORDER_RATE=10 K6_ORDER_DURATION=2m k6 run tests/performance/k6/sallijang/order-create-load.js
 ```
 
+핫 상품 주문 쏠림 load:
+
+```bash
+K6_STORE_ID=1 \
+K6_HOT_PRODUCT_STOCK=300 \
+K6_HOT_ORDER_RATE=20 \
+K6_HOT_ORDER_DURATION=2m \
+k6 run tests/performance/k6/sallijang/order-hot-product-race.js
+```
+
+AWS runner에서 prod를 대상으로 실행:
+
+```bash
+./k6aws hot-order \
+  --store-id 1 \
+  --rate 20 \
+  --duration 2m \
+  --seller-token "$K6_SELLER_ACCESS_TOKEN" \
+  --buyer-token "$K6_BUYER_ACCESS_TOKEN" \
+  --env K6_HOT_PRODUCT_STOCK=300 \
+  --env K6_HOT_PRODUCT_POOL_SIZE=1 \
+  --run-id hot-order-20rps-$(date +%Y%m%d-%H%M%S) \
+  --wait
+```
+
+Grafana 대시보드에서 k6 패널을 보려면 runner가 prod Prometheus로 remote write를 보내야 한다. 커스텀 카운터는 Prometheus에서 `k6_order_hot_product_status_201_total`, `k6_order_hot_product_status_409_total`, `k6_order_hot_product_status_503_total`, `k6_order_hot_product_status_5xx_total` 형태로 조회한다.
+
 기본 상품 생성/삭제 load:
 
 ```bash
@@ -189,6 +220,7 @@ bash tests/performance/run-sallijang-suite.sh
 K6_BASE_URL=https://api.sallijang.shop \
 K6_STORE_ID=1 \
 K6_RUN_ORDER_LOAD=1 \
+K6_RUN_HOT_ORDER=1 \
 K6_RUN_STEP_LOAD=1 \
 K6_RUN_SPIKE=1 \
 K6_RUN_SOAK=1 \
@@ -203,6 +235,7 @@ dev 환경에서는 아래처럼 낮게 시작한다.
 ```bash
 K6_READ_RATE=5 K6_READ_DURATION=1m k6 run tests/performance/k6/sallijang/product-list-load.js
 K6_STORE_ID=1 K6_ORDER_RATE=2 K6_ORDER_DURATION=1m k6 run tests/performance/k6/sallijang/order-create-load.js
+K6_STORE_ID=1 K6_HOT_ORDER_RATE=2 K6_HOT_ORDER_DURATION=1m K6_HOT_PRODUCT_STOCK=20 k6 run tests/performance/k6/sallijang/order-hot-product-race.js
 K6_STORE_ID=1 K6_PRODUCT_CREATE_RATE=2 K6_PRODUCT_CREATE_DURATION=1m k6 run tests/performance/k6/sallijang/product-create-load.js
 K6_STEP_TARGETS=2,5,10 K6_STEP_HOLD_DURATION=1m k6 run tests/performance/k6/sallijang/product-list-step-load.js
 K6_SPIKE_BASE_RATE=2 K6_SPIKE_RATE=15 k6 run tests/performance/k6/sallijang/product-list-spike.js
@@ -214,8 +247,9 @@ K6_STORE_ID=1 K6_SOAK_VUS=2 K6_SOAK_DURATION=10m k6 run tests/performance/k6/sal
 1. `smoke.js`: URL, 라우팅, 인증, 테스트 데이터 확인
 2. `product-list-load.js`, `order-create-load.js`, `product-create-load.js`: 정상 부하 기준선 확인
 3. `product-list-step-load.js`: 수용 한계와 HPA/Pod replica 반응 확인
-4. `product-list-spike.js`: 순간 피크와 회복 확인
-5. `buyer-journey-soak.js`: 장시간 누적 문제 확인
-6. `stress/*.js`: 한계 탐색과 장애 지점 분석
+4. `order-hot-product-race.js`: 인기 상품 쏠림과 재고 정합성 확인
+5. `product-list-spike.js`: 순간 피크와 회복 확인
+6. `buyer-journey-soak.js`: 장시간 누적 문제 확인
+7. `stress/*.js`: 한계 탐색과 장애 지점 분석
 
 목표는 처음부터 깨는 게 아니라, smoke 통과 -> 낮은 load 안정 확인 -> RPS 단계 상승 -> spike/soak -> stress 순서로 병목 지점을 찾는 것이다.

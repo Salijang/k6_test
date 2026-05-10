@@ -10,6 +10,7 @@ RUN_ID="${RUN_ID:-sallijang-$(date +%Y%m%d-%H%M%S)}"
 RESULTS_DIR="${RESULTS_DIR:-${PERF_DIR}/results/${RUN_ID}}"
 USE_PROMETHEUS="${K6_USE_PROMETHEUS:-1}"
 RUN_ORDER_LOAD="${K6_RUN_ORDER_LOAD:-0}"
+RUN_HOT_ORDER="${K6_RUN_HOT_ORDER:-0}"
 RUN_STEP_LOAD="${K6_RUN_STEP_LOAD:-0}"
 RUN_SPIKE="${K6_RUN_SPIKE:-0}"
 RUN_SOAK="${K6_RUN_SOAK:-0}"
@@ -21,6 +22,10 @@ SCENARIOS=(
 
 if [[ "${RUN_ORDER_LOAD}" == "1" ]]; then
   SCENARIOS+=("order-create-load:tests/performance/k6/sallijang/order-create-load.js")
+fi
+
+if [[ "${RUN_HOT_ORDER}" == "1" ]]; then
+  SCENARIOS+=("order-hot-product-race:tests/performance/k6/sallijang/order-hot-product-race.js")
 fi
 
 if [[ "${RUN_STEP_LOAD}" == "1" ]]; then
@@ -42,7 +47,7 @@ echo "Results directory: ${RESULTS_DIR}"
 echo "Product base URL: ${K6_BASE_URL_PRODUCT:-${K6_BASE_URL:-http://product-service}}"
 echo "Order base URL: ${K6_BASE_URL_ORDER:-${K6_BASE_URL:-http://order-service}}"
 echo "Prometheus remote write: ${USE_PROMETHEUS}"
-echo "Optional scenarios: order=${RUN_ORDER_LOAD}, step=${RUN_STEP_LOAD}, spike=${RUN_SPIKE}, soak=${RUN_SOAK}"
+echo "Optional scenarios: order=${RUN_ORDER_LOAD}, hot-order=${RUN_HOT_ORDER}, step=${RUN_STEP_LOAD}, spike=${RUN_SPIKE}, soak=${RUN_SOAK}"
 echo
 
 for entry in "${SCENARIOS[@]}"; do

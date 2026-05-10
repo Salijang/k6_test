@@ -23,6 +23,7 @@ usage() {
   step        상품 목록 조회 단계 상승
   spike       상품 목록 조회 spike
   order       주문 생성 부하
+  hot-order   핫 상품 주문 쏠림 부하
   create      상품 생성/삭제 부하
   remaining   상품 재고 변경 부하
   soak        구매자 여정 soak
@@ -38,8 +39,8 @@ usage() {
   --skip-runner-check       EC2/SSM 사전 상태 확인 생략
 
 조회/쓰기 부하 옵션:
-  --rate <rps>              read/order/create/remaining RPS
-  --duration <duration>     read/order/create/remaining/soak duration
+  --rate <rps>              read/order/hot-order/create/remaining RPS
+  --duration <duration>     read/order/hot-order/create/remaining/soak duration
 
 단계 상승 옵션:
   --targets <csv>           예: 5,10,20
@@ -61,6 +62,7 @@ Spike 옵션:
   ./k6aws read --rate 5 --duration 1m --run-id read-5rps --wait
   ./k6aws step --targets 5,10,20 --hold 1m --run-id step-5-20
   ./k6aws order --store-id 1 --rate 2 --duration 1m --buyer-token "$K6_BUYER_ACCESS_TOKEN"
+  ./k6aws hot-order --store-id 1 --rate 20 --duration 2m --seller-token "$K6_SELLER_ACCESS_TOKEN" --buyer-token "$K6_BUYER_ACCESS_TOKEN"
 
 환경변수로 기본값 변경:
   AWS_PROFILE_NAME, AWS_REGION, K6_RUNNER_INSTANCE_ID, K6_BASE_URL, RUNNER_SCRIPT
@@ -268,22 +270,24 @@ interactive_mode() {
   3) step       상품 목록 조회 단계 상승
   4) spike      순간 트래픽 급증
   5) order      주문 생성 부하
-  6) create     상품 생성/삭제 부하
-  7) remaining  상품 재고 변경 부하
-  8) soak       구매자 여정 장시간 테스트
+  6) hot-order  핫 상품 주문 쏠림 부하
+  7) create     상품 생성/삭제 부하
+  8) remaining  상품 재고 변경 부하
+  9) soak       구매자 여정 장시간 테스트
 MENU
 
   local choice selected
-  read -r -p "테스트를 선택하세요 [1-8]: " choice
+  read -r -p "테스트를 선택하세요 [1-9]: " choice
   case "$choice" in
     1|smoke) selected="smoke" ;;
     2|read) selected="read" ;;
     3|step) selected="step" ;;
     4|spike) selected="spike" ;;
     5|order) selected="order" ;;
-    6|create) selected="create" ;;
-    7|remaining) selected="remaining" ;;
-    8|soak) selected="soak" ;;
+    6|hot-order) selected="hot-order" ;;
+    7|create) selected="create" ;;
+    8|remaining) selected="remaining" ;;
+    9|soak) selected="soak" ;;
     *) die "invalid scenario selection: $choice" ;;
   esac
 
@@ -323,6 +327,17 @@ MENU
       args+=("--store-id" "$(prompt_default "스토어 ID" "1")")
       args+=("--rate" "$(prompt_default "주문 RPS" "2")")
       args+=("--duration" "$(prompt_default "실행 시간" "1m")")
+      append_if_set args "--buyer-token" "$(prompt_secret_optional "구매자 access token, 없으면 Enter")"
+      ;;
+    hot-order)
+      echo "주의: hot-order 테스트는 실제 주문 데이터를 만들고 단일 상품 재고를 빠르게 소진할 수 있다." >&2
+      confirm_default_yes "핫 상품 주문 쏠림 테스트를 계속할까요?" || exit 0
+      args+=("--store-id" "$(prompt_default "스토어 ID" "1")")
+      args+=("--rate" "$(prompt_default "핫 상품 주문 RPS" "20")")
+      args+=("--duration" "$(prompt_default "실행 시간" "2m")")
+      append_if_set args "--env" "K6_HOT_PRODUCT_STOCK=$(prompt_default "테스트 상품 재고" "300")"
+      append_if_set args "--env" "K6_HOT_PRODUCT_POOL_SIZE=$(prompt_default "테스트 상품 풀 크기" "1")"
+      append_if_set args "--seller-token" "$(prompt_secret_optional "판매자 access token, 없으면 Enter")"
       append_if_set args "--buyer-token" "$(prompt_secret_optional "구매자 access token, 없으면 Enter")"
       ;;
     create)
@@ -398,6 +413,9 @@ case "$scenario" in
   order|order-create-load)
     scenario_file="tests/performance/k6/sallijang/order-create-load.js"
     ;;
+  hot-order|order-hot-product-race)
+    scenario_file="tests/performance/k6/sallijang/order-hot-product-race.js"
+    ;;
   create|product-create-load)
     scenario_file="tests/performance/k6/sallijang/product-create-load.js"
     ;;
@@ -438,6 +456,7 @@ while [[ $# -gt 0 ]]; do
       case "$scenario" in
         read|product-list-load) env_pairs+=("K6_READ_RATE=${2:?missing value for --rate}") ;;
         order|order-create-load) env_pairs+=("K6_ORDER_RATE=${2:?missing value for --rate}") ;;
+        hot-order|order-hot-product-race) env_pairs+=("K6_HOT_ORDER_RATE=${2:?missing value for --rate}") ;;
         create|product-create-load) env_pairs+=("K6_PRODUCT_CREATE_RATE=${2:?missing value for --rate}") ;;
         remaining|product-remaining-load) env_pairs+=("K6_REMAINING_RATE=${2:?missing value for --rate}") ;;
         *) die "이 테스트에서는 --rate 옵션을 지원하지 않습니다: $scenario" ;;
@@ -448,6 +467,7 @@ while [[ $# -gt 0 ]]; do
       case "$scenario" in
         read|product-list-load) env_pairs+=("K6_READ_DURATION=${2:?missing value for --duration}") ;;
         order|order-create-load) env_pairs+=("K6_ORDER_DURATION=${2:?missing value for --duration}") ;;
+        hot-order|order-hot-product-race) env_pairs+=("K6_HOT_ORDER_DURATION=${2:?missing value for --duration}") ;;
         create|product-create-load) env_pairs+=("K6_PRODUCT_CREATE_DURATION=${2:?missing value for --duration}") ;;
         remaining|product-remaining-load) env_pairs+=("K6_REMAINING_DURATION=${2:?missing value for --duration}") ;;
         soak|buyer-journey-soak) env_pairs+=("K6_SOAK_DURATION=${2:?missing value for --duration}") ;;

@@ -222,11 +222,29 @@ export function deleteProductsBestEffort(productIds, reason = "cleanup") {
   }
 }
 
+export function getProduct(productId) {
+  const response = http.get(`${PRODUCT_BASE_URL}/api/v1/products/${productId}`, requestOptions("product_get"));
+  if (response.status !== 200) {
+    throw new Error(`상품 조회 실패: productId=${productId} status=${response.status} body=${response.body}`);
+  }
+  return response.json();
+}
+
 export function parseProductIdsFromEnv() {
   return (__ENV.K6_PRODUCT_IDS ?? "")
     .split(",")
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isInteger(value) && value > 0);
+}
+
+export function listStoreOrders({ status } = {}) {
+  requireStoreId();
+  const query = buildQuery({ store_id: STORE_ID, status });
+  const response = http.get(`${ORDER_BASE_URL}/api/v1/orders/?${query}`, sellerRequestOptions("order_list"));
+  if (response.status !== 200) {
+    throw new Error(`주문 목록 조회 실패: storeId=${STORE_ID} status=${response.status} body=${response.body}`);
+  }
+  return response.json();
 }
 
 export function buildOrderPayload({ productId, productName }) {
