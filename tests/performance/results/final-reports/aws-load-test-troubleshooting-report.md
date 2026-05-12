@@ -88,9 +88,311 @@
 
 정리하면, 현재 해결됐다고 말할 수 있는 것은 "`TEMP` unique placeholder로 인한 `order_flush` 장기 대기 병목은 제거됐다"는 범위까지다. 주문 생성 `20 RPS / 5m` 운영 기준은 hotfix 후 재검증에서도 아직 통과하지 못했다.
 
-## 5. 상세 트러블슈팅
+## 5. 트러블슈팅 요약
 
-### 5.0 2026-05-11 주문 20 RPS 재검증
+### 5.1 주문 생성 부하 테스트 중 `TEMP` 주문번호 unique 충돌
+
+발생위치
+
+`order-service` 주문 생성 API, `POST /api/v1/orders/`
+
+관련 위치:
+
+- `orders` 테이블
+- `orders.order_number` unique 제약조건
+- 주문 생성 로직의 DB insert/flush 구간
+
+에러메시지 및 증상
+
+주문 생성 `20 RPS / 5m` 부하 테스트에서 p95 응답 시간이 급격히 증가하고, 일부 5xx와 dropped iteration이 발생했다.
+
+대표 증상:
+
+```text
+주문 생성 20 RPS
+p95 30.97s
+5xx 17건
+dropped iteration 1,265건
+VU max 300/300
+```
+
+order-service 성능 로그에서는 주문 생성 처리 시간이 `order_flush` 단계에 집중되어 있었다.
+
+```text
+[PERF] create_order total=31794.3ms ... order_flush=28621.0ms
+[PERF] create_order total=34820.7ms ... order_flush=32568.6ms
+[PERF] create_order total=29973.5ms ... order_flush=29251.9ms
+```
+
+원인분석
+
+주문 생성 로직은 주문 row를 먼저 생성하기 위해 `order_number = "TEMP"` 값을 넣고 DB에 insert/flush한 뒤, 이후 실제 주문번호로 갱신하는 구조였다.
+
+그러나 `orders.order_number` 컬럼에는 unique 제약조건이 존재했다. 부하 테스트처럼 여러 주문 생성 요청이 동시에 들어오면 여러 transaction이 동일한 `TEMP` 값을 insert하려고 시도한다.
+
+이로 인해 PostgreSQL unique index 충돌 또는 대기가 발생했고, DB `flush` 구간이 길게 막히면서 주문 생성 API의 tail latency가 급격히 증가했다.
+
+정리하면 문제 흐름은 다음과 같다.
+
+```text
+동시 주문 요청 증가
+-> 모든 요청이 동일한 임시 주문번호 "TEMP" 사용
+-> orders.order_number unique 제약조건과 충돌
+-> DB flush 대기 증가
+-> p95 응답 시간 급증, dropped iteration, 일부 5xx 발생
+```
+
+해결방법
+
+모든 주문 생성 요청이 동일한 `TEMP` 주문번호를 사용하지 않도록 수정했다.
+
+기존 방식:
+
+```text
+1. order_number = "TEMP" 로 주문 row insert
+2. DB flush
+3. 실제 주문번호 생성
+4. order_number 업데이트
+```
+
+개선 방식:
+
+```text
+1. 주문 생성 시점에 요청별로 unique한 placeholder 생성
+2. 해당 주문번호로 주문 row insert
+3. 동일한 "TEMP" placeholder 사용 제거
+```
+
+수정 후 fork PR을 생성했고, 권한자가 원본 저장소에 merge했다.
+
+- PR: `https://github.com/Salijang/sallijang-backend-order/pull/1`
+- Merge commit: `65da9519fc577cacaff7a9349688d14f96635dbe`
+- 배포 이미지: `sallijang-backend-order:65da9519fc577cacaff7a9349688d14f96635dbe`
+
+검증결과
+
+hotfix 배포 후 동일한 주문 생성 `20 RPS / 5m` 조건으로 재검증했다.
+
+| 항목 | hotfix 전 | hotfix 후 |
+|---|---:|---:|
+| iterations | `4,735` | `5,897` |
+| 실제 처리량 | `15.31 it/s` | `17.25 it/s` |
+| 201 | `4,718` | `5,896` |
+| 5xx | `17` | `1` |
+| dropped iterations | `1,265` | `103` |
+| VU max | `300/300` | `133/300` |
+| p95 | `30.97s` | `12.04s` |
+| max | `46.97s` | `42.87s` |
+
+hotfix 후 `order_flush`의 28~32초 장기 대기는 재현되지 않았고, 대부분 수백 ms~1초대까지 감소했다. 따라서 `TEMP` 주문번호 unique 충돌로 인한 DB flush 병목은 제거된 것으로 판단한다.
+
+다만 주문 생성 `20 RPS`의 p95 목표 기준인 `1.5s`는 아직 만족하지 못했다. 따라서 이번 조치는 전체 주문 생성 성능 문제의 완전한 해결이 아니라, `TEMP` unique placeholder로 인한 주요 DB 병목 제거로 범위를 한정한다.
+
+### 5.2 HPA scale-out 중 ArgoCD self-heal로 replica 원복
+
+발생위치
+
+EKS `default` namespace의 order/product 배포 및 GitOps 동기화 설정
+
+관련 위치:
+
+- `order-deploy`
+- `product-deploy`
+- `order-hpa`
+- `product-hpa`
+- ArgoCD application `sallijang-order`, `sallijang-product`
+- `sallijang-manifest` 저장소의 deployment manifest
+
+에러메시지 및 증상
+
+주문 생성 `20 RPS / 5m` 부하 테스트 중 HPA는 order-service replica 수를 늘리려고 했지만, ArgoCD가 deployment manifest의 고정 replica 값을 반복 적용하는 현상이 확인됐다.
+
+대표 증상:
+
+```text
+order-hpa desired replicas 증가
+-> order-deploy 신규 pod 생성
+-> ArgoCD self-heal sync 반복
+-> order-deploy spec.replicas: 2 재적용
+-> HPA scale-out pod Killing/Terminating 반복
+```
+
+관찰된 지표:
+
+```text
+주문 생성 20 RPS
+주문 요청 6,000건
+201 5,999건
+502 1건
+1초 초과 1,232건
+5초 초과 628건
+max response time 14.934s
+```
+
+ArgoCD 로그에서는 짧은 시간 동안 automated sync와 `order-deploy configured` 이벤트가 반복되었다.
+
+```text
+sallijang-order automated sync 반복
+order-deploy configured 반복
+```
+
+원인분석
+
+HPA는 부하 상황에서 CPU 사용률을 기준으로 deployment replica 수를 늘린다. 그러나 GitOps manifest의 deployment에 `spec.replicas: 2`가 고정되어 있었고, ArgoCD application에는 `selfHeal: true`가 설정되어 있었다.
+
+이 구조에서는 HPA가 replica 수를 늘려도 ArgoCD가 이를 Git manifest와 다른 drift로 판단한다. 그 결과 ArgoCD가 `spec.replicas: 2`를 반복 적용하면서 HPA의 scale-out 결과를 되돌렸다.
+
+정리하면 문제 흐름은 다음과 같다.
+
+```text
+주문 생성 부하 증가
+-> order-hpa가 replica 증가 시도
+-> ArgoCD self-heal이 Git manifest 기준 replicas: 2 재적용
+-> scale-out pod가 안정적으로 유지되지 못함
+-> 실제 처리 capacity가 제한됨
+-> tail latency 증가 및 일부 502 발생
+```
+
+해결방법
+
+ArgoCD가 HPA의 replica 조정을 되돌리지 않도록 임시 조치를 적용했다.
+
+적용한 조치:
+
+```text
+1. ArgoCD application에 /spec/replicas ignore rule 적용
+2. RespectIgnoreDifferences=true 적용
+3. order/product HPA가 조정한 replica 수를 유지하는지 확인
+```
+
+장기적으로는 HPA 대상 deployment manifest에서 `spec.replicas`를 제거하거나, ArgoCD `ignoreDifferences` 정책을 manifest로 영구 반영해야 한다.
+
+권장 구조:
+
+```text
+HPA 대상 deployment
+-> Git manifest에서 spec.replicas 제거
+-> replica 수는 HPA가 관리
+-> ArgoCD는 image/env/resource 등 선언적 설정만 동기화
+```
+
+검증결과
+
+임시 조치 후 order/product pod가 각각 5 replicas 수준으로 유지되는 것을 확인했다. 이후 동일한 주문 생성 `20 RPS / 5m` 조건으로 재실행했다.
+
+| 항목 | 조치 전 | 조치 후 |
+|---|---:|---:|
+| 주문 시도 | `6,000` | `6,001` |
+| 201 | `5,999` | `6,001` |
+| 5xx | `1` | `0` |
+| endpoint p95 | `8.22s` | `7.85s` |
+| endpoint max | `13.74s` | `17.05s` |
+| ingress p95 | - | `7.809s` |
+| ingress max | `14.934s` | `15.632s` |
+
+조치 후 5xx는 제거됐지만 p95는 여전히 기준 `1.5s`를 초과했다. 따라서 HPA/GitOps 충돌은 scale-out 불안정과 502의 원인으로 판단하지만, 주문 생성 tail latency의 유일한 원인은 아니다.
+
+이번 조치는 "HPA scale-out을 ArgoCD가 되돌리는 문제"를 완화한 것이며, 남은 p95 지연은 order-service 내부 처리, DB connection pool/lock, product-service 재고 차감 호출 지연을 추가로 확인해야 한다.
+
+### 5.3 k6 URL high-cardinality 경고로 인한 지표 분산
+
+발생위치
+
+k6 상품 조회 시나리오 및 Prometheus/Grafana 지표 수집 구간
+
+관련 위치:
+
+- `tests/performance/k6/sallijang/product-list-load.js`
+- `tests/performance/k6/sallijang/product-list-step-load.js`
+- `tests/performance/k6/sallijang/product-list-spike.js`
+- `tests/performance/k6/sallijang/buyer-journey-soak.js`
+- `tests/performance/k6/sallijang/common.js`
+
+에러메시지 및 증상
+
+상품 조회 부하 테스트 중 k6가 URL cardinality 관련 경고를 출력했다. 상품 조회 API는 query string에 위치, pagination, category 값이 포함되므로 실행마다 서로 다른 URL이 다수 생성되었다.
+
+대표 URL 형태:
+
+```text
+/api/v1/products/?user_lat=37.512345&user_lng=126.987654&limit=20&offset=40&category=과일
+/api/v1/products/?user_lat=37.601234&user_lng=127.012345&limit=20&offset=60&category=베이커리
+```
+
+증상:
+
+```text
+k6 URL high-cardinality warning
+Prometheus 시계열 증가
+Grafana에서 URL별 지표가 과도하게 분산
+endpoint 단위 p95 해석 어려움
+```
+
+원인분석
+
+k6는 기본적으로 HTTP 요청의 URL을 기준으로 metric tag를 생성한다. 상품 조회 시나리오는 `user_lat`, `user_lng`, `limit`, `offset`, `category` 값을 랜덤 또는 반복적으로 바꾸기 때문에 고유 URL 조합이 계속 증가했다.
+
+이 경우 실제로는 같은 상품 목록 조회 API를 테스트하고 있음에도, 모니터링에서는 서로 다른 endpoint처럼 집계된다. 그 결과 endpoint 전체의 p95, 실패율, 처리량을 한눈에 판단하기 어려워졌다.
+
+정리하면 문제 흐름은 다음과 같다.
+
+```text
+상품 조회 요청마다 query string 변경
+-> k6가 URL 전체를 metric tag로 사용
+-> 고유 시계열 수 증가
+-> Prometheus/Grafana 지표가 URL별로 분산
+-> endpoint 단위 성능 판단 어려움
+```
+
+해결방법
+
+k6 요청 옵션에 `name` tag를 추가하여 query string이 달라도 같은 endpoint로 집계되도록 수정했다.
+
+개선 방식:
+
+```javascript
+export function requestOptions(endpoint, extraHeaders = {}, accessToken = pickAccessToken()) {
+  const params = headersWithAccessToken(extraHeaders, accessToken);
+  if (endpoint) {
+    params.tags = { endpoint, name: endpoint };
+  }
+  return params;
+}
+```
+
+이후 상품 조회 요청은 URL 전체가 아니라 `product_list` 같은 논리적 endpoint 이름으로 grouping되도록 했다.
+
+적용 예:
+
+```javascript
+http.get(productListUrl({ category }), requestOptions("product_list"));
+```
+
+검증결과
+
+수정 후 상품 조회 테스트 결과를 endpoint 단위로 해석할 수 있게 되었다.
+
+개선 전:
+
+```text
+/api/v1/products/?user_lat=...&user_lng=...&offset=...
+URL 조합별로 지표 분산
+```
+
+개선 후:
+
+```text
+http_req_duration{endpoint:product_list}
+http_req_duration{name:product_list}
+```
+
+이를 통해 상품 조회 `120/150/160 RPS` 테스트에서 p95와 실패율을 endpoint 기준으로 비교할 수 있었다.
+
+이번 조치는 API 성능 병목 해결이 아니라, 성능 테스트 결과의 관측성과 해석 정확도를 개선한 조치다. 이후 테스트에서는 URL cardinality로 인한 지표 왜곡을 줄이고, 시나리오별 threshold 판단을 더 명확하게 수행할 수 있게 되었다.
+
+## 6. 상세 트러블슈팅
+
+### 6.0 2026-05-11 주문 20 RPS 재검증
 
 실행 조건:
 
@@ -281,7 +583,7 @@ PR #2 배포 후 가벼운 부하 재검증:
 - previous 로그는 `Fatal Python error: Segmentation fault`, `Garbage-collecting`, SQLAlchemy ORM loading, `greenlet`, `asyncpg` native extension 경로를 다시 가리켰다.
 - 따라서 PR #2는 불필요한 `order_reload` 지연은 제거했지만, segfault 근본 원인은 아직 미해결이다.
 
-### 5.1 주문 생성 10 RPS 간헐 409
+### 6.1 주문 생성 10 RPS 간헐 409
 
 현상:
 
@@ -312,7 +614,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 - 우선 의심 지점은 `order-service -> product-service` 내부 호출의 timeout, connection pool, retry, service discovery, readiness 전환 시점이다.
 - 내부 호출 실패를 `409 Conflict`로 반환하는 정책이 적절한지도 별도 확인이 필요하다. 실제 재고 부족과 내부 호출 실패는 응답 코드/에러 코드가 분리되는 것이 운영 분석에 유리하다.
 
-### 5.2 주문 생성 20 RPS tail latency
+### 6.2 주문 생성 20 RPS tail latency
 
 1차 결과:
 
@@ -341,7 +643,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 - order-service HTTP client timeout, keep-alive, retry 설정
 - notify 등 주문 부가 처리 경로가 응답시간에 주는 영향
 
-### 5.3 HPA와 ArgoCD self-heal 충돌
+### 6.3 HPA와 ArgoCD self-heal 충돌
 
 관찰 증거:
 
@@ -377,7 +679,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 - HPA 대상 deployment에서는 GitOps manifest에서 `spec.replicas`를 제거하거나, ArgoCD ignoreDifferences 정책을 manifest로 영구화해야 한다.
 - 임시 클러스터 패치가 아니라 `sallijang-manifest` 저장소에 반영되어야 재발을 막을 수 있다.
 
-### 5.4 product remaining 240 RPS 실패
+### 6.4 product remaining 240 RPS 실패
 
 목적:
 
@@ -405,7 +707,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 - `240 RPS`는 명확한 실패 구간이다.
 - 이 구간은 k6 VU 부족보다는 서버 응답 지연, product-service 처리 한계, DB connection pool, ingress 처리 실패 누적으로 보는 것이 합리적이다.
 
-### 5.5 상품 생성/삭제 80 RPS 502
+### 6.5 상품 생성/삭제 80 RPS 502
 
 결과:
 
@@ -427,7 +729,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 - `80 RPS`에서는 app 내부 예외만으로 설명하기 어려운 ingress/upstream 또는 pod lifecycle 문제가 섞여 있을 수 있다.
 - 짧은 burst 중 readiness, termination, HPA stabilization, upstream timeout을 함께 봐야 한다.
 
-### 5.6 public 진입점 상태 불안정
+### 6.6 public 진입점 상태 불안정
 
 한계 테스트 후 확인된 상태:
 
@@ -441,7 +743,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 - 이 시점 이후의 public API 부하 테스트는 애플리케이션 처리 한계가 아니라 DNS/LB/ingress 진입점 장애에 의해 왜곡될 수 있다.
 - 추가 테스트 전 public 진입점 복구 확인이 선행되어야 한다.
 
-### 5.7 테스트 도구/환경 이슈
+### 6.7 테스트 도구/환경 이슈
 
 | 이슈 | 내용 | 처리 |
 |---|---|---|
@@ -450,7 +752,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 | k6 URL cardinality | 랜덤 query string 조합이 URL별 고유 시계열로 잡힘 | `requestOptions()`에 `name` tag 추가해 endpoint grouping 보정 |
 | 인증 만료 | 주문 반복 테스트 중 seller/buyer token 만료로 `401` 발생 | 해당 실행은 병목 판단에서 제외, 재로그인 후 cleanup |
 
-### 5.8 PR #3 및 리소스 증설 후 재확인
+### 6.8 PR #3 및 리소스 증설 후 재확인
 
 PR #3:
 
@@ -542,7 +844,7 @@ Manifest 리소스 증설:
 - 보수적으로 전체 접속자의 `20%`가 주문 생성까지 진행한다고 보면, `50 / 0.2 = 250`명이므로 **전체 서비스 동접 약 250명 내외**로 추정한다.
 - 이 값은 "실패 없이 버틴 범위"이지 "p95까지 안정적인 확정 수용량"은 아니다.
 
-## 6. 재발 방지 및 후속 액션
+## 7. 재발 방지 및 후속 액션
 
 우선순위:
 
@@ -565,7 +867,7 @@ Manifest 리소스 증설:
 17. `api.sallijang.shop`이 prod ALB를 바라보는 상태에서 부하 테스트를 계속할지 팀과 확인한다.
 18. prod EKS 확인을 위해 추가한 `arn:aws:iam::594486941613:user/CHS` 임시 access entry를 제거한다. 정리 시점의 CLI credential이 다른 계정(`150809275884`)으로 전환되어 즉시 제거하지 못했다.
 
-## 7. 다음 테스트 기준
+## 8. 다음 테스트 기준
 
 다음 테스트는 단순히 RPS를 더 올리기보다 `20 RPS` 주문 생성 병목을 먼저 줄이는 방향으로 진행한다.
 
@@ -588,7 +890,7 @@ Manifest 리소스 증설:
 | HPA scale-out | 부하 중 desired replicas 유지 |
 | ArgoCD sync | HPA scale-out을 즉시 원복하지 않음 |
 
-## 8. 근거 문서
+## 9. 근거 문서
 
 - `tests/performance/results/final-reports/aws-20260505/evidence/20260505-public-api-write-scenarios-report.md`
 - `tests/performance/results/final-reports/aws-20260505/evidence/20260505-sequential-test-report.md`
