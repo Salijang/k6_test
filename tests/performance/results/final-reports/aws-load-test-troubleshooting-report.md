@@ -1,8 +1,8 @@
 # Sallijang AWS 부하 테스트 트러블슈팅 보고서
 
-작성일: 2026-05-11 KST  
+작성일: 2026-05-11 KST / 갱신: 2026-05-13 KST
 대상: `https://api.sallijang.shop`  
-범위: 2026-05-05 1차 AWS 부하 테스트, 2026-05-07 2차 AWS 재검증, 2026-05-11 주문 병목 재검증
+범위: 2026-05-05 1차 AWS 부하 테스트, 2026-05-07 2차 AWS 재검증, 2026-05-11 주문 병목 재검증, 2026-05-13 SQS 재고 차감 경로 경량 재검증
 
 ## 1. 목적
 
@@ -26,12 +26,13 @@
 | 주문 생성 내부 호출 | `10 RPS`에서 간헐 `409`, order 로그에 `All connection attempts failed` | `order-service -> product-service` 내부 호출 경로, timeout/connection 설정 확인 필요 |
 | 주문 생성 `20 RPS` | 1차 p95 `29.55s`, 2차 p95 `8.22s`, HPA 조치 후에도 p95 `7.85s` | HPA/GitOps 충돌은 502와 scale-out 불안정 원인이나 tail latency의 유일 원인은 아님 |
 | 2026-05-11 주문 재검증 | p95 `30.97s`, 5xx `17`, dropped `1,265`, 실제 처리량 `15.31 it/s` | 주문 `20 RPS` 병목 미해결 재확인 |
-| 2026-05-11 Kubernetes 관찰 | order HPA `7 replicas`, 일부 order pod `Exit Code 139`, `[PERF] order_flush` 28~32s | 병목은 HPA 미동작만이 아니라 order-service/DB flush/프로세스 안정성까지 포함 |
+| 2026-05-11 Kubernetes 관찰 | order HPA `7 replicas`, 일부 order pod `Exit Code 139`, `[PERF] order_flush` 28-32s | 병목은 HPA 미동작만이 아니라 order-service/DB flush/프로세스 안정성까지 포함 |
 | 2026-05-11 hotfix 후 재검증 | p95 `12.04s`, 5xx `1`, dropped `103`, 실제 처리량 `17.25 it/s`; 추가 확인에서 order pod `Exit Code 139` 재발 | 크게 개선됐지만 운영 기준은 아직 미달 |
-| HPA/GitOps | HPA는 `4~5 replicas`를 원하지만 ArgoCD가 `replicas: 2`를 반복 적용 | HPA 대상 deployment에서 replicas 관리 정책 조정 필요 |
+| HPA/GitOps | HPA는 `4-5 replicas`를 원하지만 ArgoCD가 `replicas: 2`를 반복 적용 | HPA 대상 deployment에서 replicas 관리 정책 조정 필요 |
 | 재고 차감 직접 호출 | `160 RPS` 안정, `240 RPS`에서 5xx `860`, dropped `5,790` | product-service/DB/ingress 처리 한계 구간 |
 | 상품 생성/삭제 | `40 RPS` 안정, `80 RPS`에서 create 502 발생 | 짧은 burst 중 ingress/upstream, pod lifecycle, readiness 확인 필요 |
 | public 진입점 | 한계 테스트 후 DNS/ALB/ingress-nginx 상태 불안정 관찰 | 추가 public API 테스트 전 진입점 복구 확인 필요 |
+| SQS 재고 차감 경로 | product SQS 컨슈머가 한 번에 최대 10개 메시지를 받지만 batch 내부 메시지를 순차 처리 | `asyncio.gather` 기반 batch 병렬 처리와 실패 메시지 미삭제 재시도 의미를 명확화했고, 로컬 k6 runner 재검증에서 5xx 없이 재고 정합성 통과 |
 
 ## 3. 테스트 진행 요약
 
@@ -79,11 +80,12 @@
 |---|---|---|---|
 | HPA/GitOps replicas 충돌 | 부분 조치됨 | ArgoCD ignoreDifferences 임시 적용 후 order/product pod가 `5 replicas` 유지 | manifest에 영구 반영됐는지 확인 필요 |
 | 주문 `20 RPS` 5xx | 부분 개선 | hotfix 전 `17건`, hotfix 후 `1건` | 남은 1건의 실패 지점 추적 필요 |
-| 주문 `20 RPS` p95 지연 | 미해결 | hotfix 후에도 p95 `12.04s`; 기존 `order_flush` 28~32s 대기는 사라졌지만 기준 `1.5s` 초과 | `stock_reserve`, `order_reload`, publish 단계 병목 분리 필요 |
+| 주문 `20 RPS` p95 지연 | 미해결 | hotfix 후에도 p95 `12.04s`; 기존 `order_flush` 28-32s 대기는 사라졌지만 기준 `1.5s` 초과 | `stock_reserve`, `order_reload`, publish 단계 병목 분리 필요 |
 | order-service segfault | 미해결 | hotfix 전 order pod `Exit Code 139` 확인, hotfix 이미지에서도 추가 확인 시 5/7 pod 재시작 | SQLAlchemy ORM loading, GC, asyncpg/greenlet native extension 원인 확인 필요 |
 | `TEMP` unique placeholder 병목 | 조치됨 | hotfix 후 p95 `30.97s -> 12.04s`, dropped `1,265 -> 103`, 5xx `17 -> 1`; order pod restart `0` | 남은 p95/5xx 병목 추가 분리 필요 |
 | 주문 `10 RPS` 간헐 409 | 미해결/재현성 불안정 | 1차에서 409 발생, probe 실행에서는 통과 | 내부 호출 실패 원인과 에러 매핑 정책 확인 필요 |
 | product remaining `240 RPS` 실패 | 미해결 | 5xx `860`, dropped `5,790` | product/DB/ingress 한계 분리 필요 |
+| product SQS stock_deduct 컨슈머 batch 처리 | 조치 후 경량 검증 통과 | product-service commit `3bca9e5`, 배포 tag `4689a38` 포함, 2026-05-13 local k6 runner hot-order `2 RPS / 30s`에서 5xx `0`, p95 `342.23ms`, 재고 `20 -> 0`, 활성 주문 수 `20` | 더 높은 RPS와 CloudWatch SQS queue age/visible message 지표 재검증 필요 |
 | public 진입점 불안정 | 확인 필요 | DNS/ALB/ingress-nginx 불안정 기록 | 추가 테스트 전 smoke 및 인프라 상태 확인 필요 |
 
 정리하면, 현재 해결됐다고 말할 수 있는 것은 "`TEMP` unique placeholder로 인한 `order_flush` 장기 대기 병목은 제거됐다"는 범위까지다. 주문 생성 `20 RPS / 5m` 운영 기준은 hotfix 후 재검증에서도 아직 통과하지 못했다.
@@ -169,7 +171,7 @@ Extension modules: ... greenlet._greenlet, asyncpg.pgproto.pgproto, asyncpg.prot
 - 배포 기준 order-service `create_order`는 주문 ID 생성을 위해 `order_number="TEMP"`로 `orders` row를 먼저 insert/flush한 뒤, flush 후 실제 주문번호로 갱신한다.
 - `orders.order_number`는 unique 컬럼이다.
 - 부하 상황에서 모든 동시 주문이 같은 unique 값 `TEMP`를 insert하려고 하면 PostgreSQL unique index 충돌/대기 때문에 `db.flush()`가 길게 막힐 수 있다.
-- 이 구조는 2026-05-11 로그의 `order_flush=28621~32568ms` 현상과 직접적으로 맞는다.
+- 이 구조는 2026-05-11 로그의 `order_flush=28621-32568ms` 현상과 직접적으로 맞는다.
 - `TEMP` 대신 요청별 고유 placeholder `PENDING-{uuid}`를 넣도록 수정했고, PR #1이 merge되어 배포됐다.
 - 원본 repo 직접 push는 현재 GitHub 계정 권한으로 실패했지만, fork PR #1을 생성했고 권한자가 merge했다: https://github.com/Salijang/sallijang-backend-order/pull/1
 - fork PR check는 AWS OIDC credential 부재로 실패했지만, 원본 `main` merge 후 push workflow는 성공했다.
@@ -194,7 +196,7 @@ hotfix 후 Kubernetes 관찰:
 - `order-deploy` image는 `65da9519fc577cacaff7a9349688d14f96635dbe`로 반영됐고 rollout은 완료됐다.
 - 재검증 직후 확인 시점에는 order pod 7개 모두 restart `0`이었다.
 - order HPA는 `7 replicas`, product HPA는 테스트 후 `6 replicas`였다.
-- `[PERF]` 로그의 `order_flush`는 대부분 수백 ms~1초대까지 내려왔다. 기존 `28~32s`급 flush 대기는 재현되지 않았다.
+- `[PERF]` 로그의 `order_flush`는 대부분 수백 ms-1초대까지 내려왔다. 기존 `28-32s`급 flush 대기는 재현되지 않았다.
 
 hotfix 후 후속 확인:
 
@@ -412,7 +414,7 @@ POST /api/v1/orders/ HTTP/1.1" 409 Conflict
 | Target RPS | HTTP p95 | Created 201 | Delete 204 | 5xx/502 | Dropped |
 |---:|---:|---:|---:|---:|---:|
 | 40 | `53.59ms` | 2,400 | 2,400 | 0 | 0 |
-| 80 | `4.06s` | 4,799 | 4,799 | 2~6 | 0 |
+| 80 | `4.06s` | 4,799 | 4,799 | 2-6 | 0 |
 
 관찰:
 
@@ -542,28 +544,117 @@ Manifest 리소스 증설:
 - 보수적으로 전체 접속자의 `20%`가 주문 생성까지 진행한다고 보면, `50 / 0.2 = 250`명이므로 **전체 서비스 동접 약 250명 내외**로 추정한다.
 - 이 값은 "실패 없이 버틴 범위"이지 "p95까지 안정적인 확정 수용량"은 아니다.
 
+### 5.9 SQS 재고 차감 컨슈머 batch 처리 개선 및 로컬 k6 runner 재검증
+
+목적:
+
+- 주문 생성 hot path에서 재고 차감 publish 이후 product-service의 SQS stock_deduct 컨슈머가 burst를 얼마나 안정적으로 소화하는지 확인한다.
+- 기존 AWS 테스트에서 `stock_deduct_publish` tail latency와 주문 지연이 함께 관찰됐지만, 이 값만으로 SQS 컨슈머가 단독 원인이라고 단정할 수는 없다.
+- 따라서 이번 항목은 "SQS 컨슈머 처리 구조상 병목 후보를 제거했고, 경량 재검증에서 재고 정합성이 유지됐다"는 범위로 기록한다.
+
+수정 전 의심 지점:
+
+| 항목 | 내용 | 영향 |
+|---|---|---|
+| SQS receive batch | `MaxNumberOfMessages=10`으로 한 번에 최대 10개 메시지를 가져옴 | batch 단위 수신 자체는 가능 |
+| batch 내부 처리 | `for msg in response.get("Messages", [])` 순차 처리 | 한 메시지 처리 지연이 같은 batch의 뒤 메시지 처리를 밀 수 있음 |
+| 실패 처리 | 처리 성공 후에만 `delete_message` 호출 | 실패 메시지는 visibility timeout 후 재전달되지만, 코드 의도가 명시적이지 않았음 |
+
+반영한 SQS 수정:
+
+| 항목 | 변경 |
+|---|---|
+| Repository | `Salijang/sallijang-backend-product` |
+| Commit | `3bca9e5` `feat: SQS 병렬처리+자동 재시도, Haversine 이중계산 제거, 리뷰 삭제 시 증분 업데이트` |
+| 배포 확인 tag | `sallijang-manifest/base/product/kustomization.yaml` 기준 `4689a383f3b92dd1bba5ff364a34c506290b6aef` |
+| 핵심 변경 | SQS batch 메시지를 `_handle_message()`로 분리하고 `asyncio.gather(..., return_exceptions=True)`로 batch 내부 병렬 처리 |
+| 재시도 의미 | 처리 중 예외가 난 메시지는 삭제하지 않아 SQS visibility timeout 후 재전달되도록 유지 |
+
+변경 전후 코드 구조:
+
+```text
+수정 전: receive 10개 -> for loop로 1개씩 process_stock_deduct -> 성공 시 delete
+수정 후: receive 10개 -> asyncio.gather로 batch 내부 동시 처리 -> 성공 시 delete, 실패 시 미삭제
+```
+
+재검증 실행 조건:
+
+| 항목 | 값 |
+|---|---|
+| 실행 일시 | `2026-05-13 16:48 KST` |
+| 실행 위치 | local k6 runner |
+| 대상 | `https://api.sallijang.shop` |
+| Script | `tests/performance/k6/sallijang/order-hot-product-race.js` |
+| Test ID | `20260513-sqs-retest-hot-order` |
+| Store ID | `18` |
+| Rate | `2 iterations/s` |
+| Duration | `30s` |
+| Product pool | `1` |
+| Initial stock | `20` |
+| VU 설정 | preAllocated `10`, max `30` |
+| SAGA settle | `10s` |
+
+재검증 결과:
+
+| 지표 | 값 |
+|---|---:|
+| iterations | `60` |
+| checks | `183/183`, `100%` |
+| 주문 201 | `20` |
+| 주문 409 | `40` |
+| 5xx | `0` |
+| http_req_failed | `0%` |
+| endpoint p95 | `342.23ms` |
+| endpoint max | `3.12s` |
+| created orders | `20` |
+| final remaining | `0` |
+| active hot product orders | `20` |
+| VU max | `10` |
+
+통과한 정합성 check:
+
+- `hot order never 5xx`
+- `hot product remaining is never negative`
+- `hot product remaining does not exceed initial stock`
+- `active hot product orders do not exceed stock`
+
+판단:
+
+- 재고 `20`인 단일 hot product에 `60`회 주문 시도를 넣었고, 정확히 `20`건만 `201 Created`로 처리됐다.
+- 초과 주문 `40`건은 `409 Conflict`로 거절됐으며, 이는 재고 소진 상황의 정상 비즈니스 응답이다.
+- 최종 재고는 `0`, 활성 주문 수는 `20`으로 맞아 과주문과 음수 재고는 발생하지 않았다.
+- 이 경량 재검증 범위에서는 SQS 재고 차감 경로와 주문 경합 정합성이 정상으로 확인됐다.
+
+한계:
+
+- 이번 실행은 local k6 runner에서 public API를 낮은 RPS로 호출한 검증이다. localhost 단일 머신 compose 테스트가 아니다.
+- CloudWatch SQS `ApproximateAgeOfOldestMessage`, visible message count, DLQ 유입량은 같이 수집하지 못했다.
+- 따라서 "SQS 수정으로 모든 주문 지연이 해결됐다"가 아니라, "SQS batch 순차 처리 병목 후보를 줄였고, 낮은 부하 재검증에서 결과가 정상"으로 해석해야 한다.
+- 운영 용량으로 주장하려면 같은 시나리오를 `5/10/20 RPS`로 올리면서 SQS queue age, DLQ, product pod CPU/memory, order p95를 함께 봐야 한다.
+
 ## 6. 재발 방지 및 후속 액션
 
 우선순위:
 
 1. order-service `Exit Code 139` segfault는 PR #3 이후에도 1회 추가 관측됐으므로 근본 원인 미해결로 관리한다.
 2. 리소스 증설 후 5xx/restart는 짧은 재검증에서 사라졌지만, p95 `11.57s`가 남아 tail latency 원인을 계속 추적한다.
-3. SQS polling thread를 주문 API process와 분리하거나, 같은 process에서 asyncpg/SQLAlchemy/greenlet과 충돌할 가능성을 확인한다.
-4. 남은 주문 p95 지연을 `order_flush`, `db_commit`, `stock_deduct_publish`, `notify_publish` 단계별로 분리한다.
-5. order-service DB connection pool checkout 대기, lock wait, slow query, transaction duration, ORM flush 대상 객체 수를 주문 생성 시간대와 대조한다.
-6. pure Python SQLAlchemy 전환 후 CPU/메모리 사용량이 증가했는지 CloudWatch Container Insights 또는 metrics-server 권한으로 확인한다.
-7. `sallijang-manifest`의 HPA 대상 deployment에서 `spec.replicas`를 제거하거나 ArgoCD ignoreDifferences 정책을 영구 반영한다.
-8. `order-service -> product-service` 내부 호출의 timeout, keep-alive, connection pool, retry 정책을 확인한다.
-9. product-service remaining API의 `200 RPS~240 RPS` 구간을 더 촘촘히 재측정한다.
-10. ingress-nginx, ALB target health, upstream timeout, pod readiness/termination event를 테스트 시간대별로 함께 수집한다.
-11. `api.sallijang.shop` TLS 인증서를 SAN 또는 wildcard 인증서로 교체한다.
-12. capacity 판정용 k6 runner는 WSL/local이 아니라 같은 region EC2, CI runner, 또는 클러스터 내부 runner를 사용한다.
-13. 테스트 계정 token 만료 시간을 고려해 장시간/반복 실행 전 env를 갱신한다.
-14. 조치 후 주문 생성 `10/20/40 RPS`를 같은 조건으로 재실행한다.
-15. runner의 S3 업로드 대상 버킷을 현재 계정 기준으로 정리한다. 현재 계정에는 `pickup-dev-logs`가 없고 `pickup-prod-logs`만 확인된다.
-16. k6 runner subnet route table의 IGW 기본 route를 Terraform에 반영한다. 2026-05-11에 `rtb-01b43a8737ff469b6`에 `0.0.0.0/0 -> igw-023ad0d0b3a41163d`를 임시 추가했다.
-17. `api.sallijang.shop`이 prod ALB를 바라보는 상태에서 부하 테스트를 계속할지 팀과 확인한다.
-18. prod EKS 확인을 위해 추가한 `arn:aws:iam::594486941613:user/CHS` 임시 access entry를 제거한다. 정리 시점의 CLI credential이 다른 계정(`150809275884`)으로 전환되어 즉시 제거하지 못했다.
+3. SQS stock_deduct 컨슈머는 batch 병렬 처리로 개선됐지만, `5/10/20 RPS` 재검증과 CloudWatch SQS queue age, DLQ, visible message count를 함께 수집한다.
+4. SQS polling thread를 주문 API process와 분리하거나, 같은 process에서 asyncpg/SQLAlchemy/greenlet과 충돌할 가능성을 확인한다.
+5. 남은 주문 p95 지연을 `order_flush`, `db_commit`, `stock_deduct_publish`, `notify_publish` 단계별로 분리한다.
+6. order-service DB connection pool checkout 대기, lock wait, slow query, transaction duration, ORM flush 대상 객체 수를 주문 생성 시간대와 대조한다.
+7. pure Python SQLAlchemy 전환 후 CPU/메모리 사용량이 증가했는지 CloudWatch Container Insights 또는 metrics-server 권한으로 확인한다.
+8. `sallijang-manifest`의 HPA 대상 deployment에서 `spec.replicas`를 제거하거나 ArgoCD ignoreDifferences 정책을 영구 반영한다.
+9. `order-service -> product-service` 내부 호출의 timeout, keep-alive, connection pool, retry 정책을 확인한다.
+10. product-service remaining API의 `200-240 RPS` 구간을 더 촘촘히 재측정한다.
+11. ingress-nginx, ALB target health, upstream timeout, pod readiness/termination event를 테스트 시간대별로 함께 수집한다.
+12. `api.sallijang.shop` TLS 인증서를 SAN 또는 wildcard 인증서로 교체한다.
+13. capacity 판정용 k6 runner는 WSL/local이 아니라 같은 region EC2, CI runner, 또는 클러스터 내부 runner를 사용한다.
+14. 테스트 계정 token 만료 시간을 고려해 장시간/반복 실행 전 env를 갱신한다.
+15. 조치 후 주문 생성 `10/20/40 RPS`를 같은 조건으로 재실행한다.
+16. runner의 S3 업로드 대상 버킷을 현재 계정 기준으로 정리한다. 현재 계정에는 `pickup-dev-logs`가 없고 `pickup-prod-logs`만 확인된다.
+17. k6 runner subnet route table의 IGW 기본 route를 Terraform에 반영한다. 2026-05-11에 `rtb-01b43a8737ff469b6`에 `0.0.0.0/0 -> igw-023ad0d0b3a41163d`를 임시 추가했다.
+18. `api.sallijang.shop`이 prod ALB를 바라보는 상태에서 부하 테스트를 계속할지 팀과 확인한다.
+19. prod EKS 확인을 위해 추가한 `arn:aws:iam::594486941613:user/CHS` 임시 access entry를 제거한다. 정리 시점의 CLI credential이 다른 계정(`150809275884`)으로 전환되어 즉시 제거하지 못했다.
 
 ## 7. 다음 테스트 기준
 
@@ -596,4 +687,5 @@ Manifest 리소스 증설:
 - `tests/performance/results/aws-2nd-20260507/README.md`
 - `tests/performance/k6/sallijang/DEV_TEST_STATUS_2026-05-05.md`
 - `tests/performance/results/aws-troubleshoot-20260511/README.md`
+- `tests/performance/results/final-reports/sqs-retest-20260513.md`
 - SQLAlchemy 2.0 Documentation, Overview / C extension build control: https://docs.sqlalchemy.org/20/intro.html
